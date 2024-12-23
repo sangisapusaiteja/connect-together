@@ -65,45 +65,51 @@ export default function IndexPage() {
   const handleEnterRoom = async () => {
     setIsLoadingEnter(true);
     setError(null);
-  
+
     if (!roomCode || !personName) {
       setError("Please provide a room code and your name.");
       setIsLoadingEnter(false);
       return;
     }
-  
+
     // Check if the room exists
     const { data, error } = await supabaseBrowserClient
       .from("rooms")
       .select("id, room_code")
       .eq("room_code", roomCode)
       .single();
-  
+
     if (error || !data) {
       setError("Invalid room code. Please try again.");
     } else {
       // Insert the user into the users table
-      const { error: insertError } = await supabaseBrowserClient
-        .from("users")
-        .insert([
-          {
-            room_id: data.id,
-            user_name: personName,
-          }
-        ]);
-  
+      const { data: insertedData, error: insertError } =
+        await supabaseBrowserClient
+          .from("users")
+          .upsert(
+            [
+              {
+                room_id: data.id,
+                user_name: personName,
+              },
+            ],
+            { onConflict: "room_id, user_name" }
+          )
+          .select("id");
+
       if (insertError) {
-        setError("Failed to add user to the room.");
+        setError(insertError.message);
       } else {
-        // Navigate to the About page
-        router.push(`/about?roomId=${data.id}&personName=${personName}`);
+        // Get the inserted user's id
+        const userId = insertedData[0].id;
+
+        // Navigate to the About page with the inserted user's id
+        router.push(`/about?roomId=${data.id}&userId=${userId}`);
       }
     }
-  
+
     setIsLoadingEnter(false);
   };
-  
-  
 
   return (
     <div className="flex flex-col justify-center items-center p-6 bg-black min-h-screen">

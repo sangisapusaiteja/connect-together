@@ -9,8 +9,9 @@ import { useSearchParams } from "next/navigation";
 
 function AboutPage() {
   const searchParams = useSearchParams();
-  const roomId = searchParams.get("roomId");
-  const personName = searchParams.get("personName");
+  const roomId = parseInt(searchParams.get("roomId") ?? "", 10);
+  const userId = parseInt(searchParams.get("userId") ?? "", 10);
+
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +26,9 @@ function AboutPage() {
 
       const { data, error } = await supabaseBrowserClient
         .from("messages")
-        .select("message, sent_at, user_id(user_name)")
+        .select(
+          "message, sent_at, user_id(id, user_name), room_id(id, room_name)"
+        )
         .eq("room_id", roomId)
         .order("sent_at", { ascending: true });
 
@@ -55,26 +58,7 @@ function AboutPage() {
 
   // Send a new message to the room
   const handleSendMessage = async () => {
-    if (!roomId || !newMessage || !personName) return;
-
-    // Query the users table to get the user_id based on user_name
-    const { data: userData, error: userError } = await supabaseBrowserClient
-      .from("users")
-      .select("id")
-      .eq("user_name", personName)
-      .single(); // Assuming user_name is unique, so we use .single()
-
-    if (userError) {
-      setError("Failed to fetch user data.");
-      return;
-    }
-
-    const userId = userData?.id;
-
-    if (!userId) {
-      setError("User not found.");
-      return;
-    }
+    if (!roomId || !newMessage || !userId) return;
 
     // Insert the message into the messages table
     const { error } = await supabaseBrowserClient
@@ -99,22 +83,21 @@ function AboutPage() {
   }, [messages]);
 
   return (
-    <div className="p-6 bg-black h-full">
-      <h1 className="text-3xl font-bold mb-4 text-white fixed bg-black top-0 py-4 w-full">
-        Chat Room
+    <div className="p-6 bg-black h-full min-h-screen flex flex-col">
+      <h1 className="text-3xl font-bold mb-4 text-white fixed bg-black top-0 py-4 w-full z-10">
+        Chat Room Name : <i>{messages?.[0]?.room_id?.room_name}</i>
       </h1>
 
       {/* Displaying error if any */}
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
       {/* Displaying messages */}
-      <div className="overflow-y-auto h-full custom-scroll">
-        {" "}
+      <div className="overflow-y-auto flex-1 custom-scroll pb-20">
         {/* Add scrolling behavior */}
         {messages.length > 0 ? (
           <ul className="list-disc list-inside">
             {messages.map((message, index) => {
-              const isCurrentUser = message.user_id?.user_name === personName;
+              const isCurrentUser = message.user_id?.id === userId;
               return (
                 <li
                   key={index}
@@ -135,10 +118,10 @@ function AboutPage() {
                       {message.user_id?.user_name}:
                     </span>
                     <span
-                      className={`p-2 rounded-lg ${
+                      className={`p-2 rounded-lg break-all ${
                         isCurrentUser
                           ? "bg-purple-400 text-white"
-                          : "bg-red-200"
+                          : "bg-red-400"
                       }`}
                     >
                       {message.message}
@@ -159,13 +142,13 @@ function AboutPage() {
       </div>
 
       {/* Form to send new message */}
-      <div className="mt-4 flex items-center space-x-2">
+      <div className="mt-4 flex items-center space-x-2 sticky bottom-0 bg-black py-2">
         <Input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type a message"
-          className="p-2 border w-3/4 focus:outline-none focus:ring-2 focus:ring-blue-500 h-10 rounded-xl text-white font-bold"
+          className="p-2 border w-3/4 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-10 rounded-xl text-white font-bold"
         />
         <Button
           onClick={handleSendMessage}
