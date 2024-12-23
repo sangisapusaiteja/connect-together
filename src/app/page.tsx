@@ -82,10 +82,6 @@ export default function IndexPage() {
     if (error || !data) {
       setError("Invalid room code. Please try again.");
     } else {
-      // Store the room id and person name in local storage or pass via router
-      localStorage.setItem("roomId", data.id.toString());
-      localStorage.setItem("personName", personName);
-  
       // Insert the user into the users table
       const { error: insertError } = await supabaseBrowserClient
         .from("users")
@@ -100,7 +96,7 @@ export default function IndexPage() {
         setError("Failed to add user to the room.");
       } else {
         // Navigate to the About page
-        router.push("/about");
+        router.push(`/about?roomId=${data.id}&personName=${personName}`);
       }
     }
   

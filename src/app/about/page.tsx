@@ -3,19 +3,21 @@
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
 import { supabaseBrowserClient } from "@utils/supabase/client";
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 
-export default function AboutPage() {
+import { useSearchParams } from "next/navigation";
+
+function AboutPage() {
+  const searchParams = useSearchParams();
+  const roomId = searchParams.get("roomId");
+  const personName = searchParams.get("personName");
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
-  const personName = localStorage.getItem("personName");
 
   // Fetch messages from the room when the component loads
   useEffect(() => {
     const fetchMessages = async () => {
-      const roomId = localStorage.getItem("roomId");
-
       if (!roomId) {
         setError("Room not found.");
         return;
@@ -37,7 +39,6 @@ export default function AboutPage() {
     fetchMessages();
 
     // Real-time subscription to listen for new messages
-    const roomId = localStorage.getItem("roomId");
     const messageSubscription = supabaseBrowserClient
       .channel(`room:${roomId}`) // Create a channel for the room
       .on(
@@ -54,8 +55,6 @@ export default function AboutPage() {
 
   // Send a new message to the room
   const handleSendMessage = async () => {
-    const roomId = parseInt(localStorage.getItem("roomId") ?? "0");
-
     if (!roomId || !newMessage || !personName) return;
 
     // Query the users table to get the user_id based on user_name
@@ -137,7 +136,9 @@ export default function AboutPage() {
                     </span>
                     <span
                       className={`p-2 rounded-lg ${
-                        isCurrentUser ? "bg-purple-400 text-white" : "bg-red-200"
+                        isCurrentUser
+                          ? "bg-purple-400 text-white"
+                          : "bg-red-200"
                       }`}
                     >
                       {message.message}
@@ -174,5 +175,12 @@ export default function AboutPage() {
         </Button>
       </div>
     </div>
+  );
+}
+export default function AboutPageWrapper() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AboutPage />
+    </Suspense>
   );
 }
