@@ -132,7 +132,7 @@ export default function IndexPage() {
     }
   };
   return (
-    <div className="flex flex-col justify-center items-center p-12 bg-black min-h-screen">
+    <div className="flex flex-col justify-center items-center p-12 bg-black h-[100vh] overflow-y-auto custom-scrollbar">
       <div className="flex flex-wrap justify-center gap-16 w-full max-w-6xl">
         {/* Create Room Card */}
         <div className="w-full sm:w-1/2 lg:w-1/3 border border-purple-500 p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center ">

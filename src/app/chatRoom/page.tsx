@@ -17,6 +17,17 @@ function AboutPage() {
   const [error, setError] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
 
+  // Redirect if roomId or userId is missing
+  if (!roomId || !userId) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-black  w-full">
+        <h1 className="text-white text-3xl font-bold">
+          Access Denied: Room ID or User ID is missing 😞...
+        </h1>
+      </div>
+    );
+  }
+
   // Fetch messages from the room when the component loads
   useEffect(() => {
     const fetchMessages = async () => {
