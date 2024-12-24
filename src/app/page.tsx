@@ -114,73 +114,76 @@ export default function IndexPage() {
   };
 
   return (
-    <div className="flex flex-col justify-center items-center p-6 bg-black min-h-screen">
-      <div className="flex space-x-10 w-[80%]">
-        <div className="w-1/2 bg-purple-700 p-6 rounded-2xl shadow-lg h-[500px] flex flex-col items-center justify-center">
-          <h2 className="text-3xl font-semibold mb-4 text-white">
-            Create a Room
-          </h2>
+    <div className="flex flex-col justify-center items-center p-12 bg-gradient-to-br from-purple-700 via-purple-800 to-purple-900 min-h-screen">
+      <div className="flex flex-wrap justify-center gap-16 w-full max-w-6xl">
+        {/* Create Room Card */}
+        <div className="w-full sm:w-1/2 lg:w-1/3 bg-gradient-to-b from-purple-600 via-purple-700 to-purple-800 p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center transform transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+          <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">Create a Room</h2>
           <Input
             type="text"
             placeholder="Room Name"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
-            className="mb-4 p-3 border border-purple-400  w-full text-black placeholder-white bg-white h-[40px] rounded-xl"
+            className="mb-6 p-4 border-2 border-purple-500 w-full text-black placeholder-purple-400 bg-white rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
           />
-
+  
           <Button
             onClick={handleCreateRoom}
             disabled={isLoadingCreate}
-            className={`p-3  text-white h-10 rounded-xl ${
-              isLoadingCreate ? "bg-purple-500 cursor-not-allowed" : "bg-black "
+            className={`w-full p-4 text-white h-12 rounded-xl font-semibold transition-colors duration-300 ${
+              isLoadingCreate ? "bg-purple-400 cursor-not-allowed" : "bg-purple-700 hover:bg-purple-800"
             }`}
           >
-            {isLoadingCreate ? "Loading..." : "Generate Room"}
+            {isLoadingCreate ? "Creating..." : "Generate Room"}
           </Button>
-
+  
           {generatedCode && (
-            <div className="mt-4">
-              <p className="text-white">
-                Room created! Code: <strong>{generatedCode}</strong>
+            <div className="mt-6 p-4 bg-purple-50 rounded-lg shadow-inner">
+              <p className="text-purple-800 font-semibold">
+                Room created! Code: <strong className="text-purple-600">{generatedCode}</strong>
               </p>
             </div>
           )}
         </div>
-
-        <div className="w-1/2 bg-purple-700 p-6 rounded-2xl shadow-lg h-[500px] flex flex-col items-center justify-center">
-          <h2 className="text-3xl font-semibold mb-4 text-white">
-            Enter a Room
-          </h2>
+  
+        {/* Enter Room Card */}
+        <div className="w-full sm:w-1/2 lg:w-1/3 bg-gradient-to-b from-purple-600 via-purple-700 to-purple-800 p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center transform transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+          <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">Enter a Room</h2>
           <Input
             type="text"
             placeholder="Enter Room Code"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
-            className="mb-4 p-3 border border-purple-400  w-full text-black bg-white h-[40px] rounded-xl"
+            className="mb-6 p-4 border-2 border-purple-500 w-full text-black placeholder-purple-400 bg-white rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
           />
           <Input
             type="text"
             placeholder="Your Name"
             value={personName}
             onChange={(e) => setPersonName(e.target.value)}
-            className="mb-4 p-3 border border-purple-400  w-full text-black bg-white h-[40px] rounded-xl"
+            className="mb-6 p-4 border-2 border-purple-500 w-full text-black placeholder-purple-400 bg-white rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
           />
           <Button
             onClick={handleEnterRoom}
             disabled={isLoadingEnter}
-            className={`p-3  text-white h-10 rounded-xl ${
-              isLoadingCreate ? "bg-purple-500 cursor-not-allowed" : "bg-black "
+            className={`w-full p-4 text-white h-12 rounded-xl font-semibold transition-colors duration-300 ${
+              isLoadingEnter ? "bg-purple-400 cursor-not-allowed" : "bg-purple-700 hover:bg-purple-800"
             }`}
           >
-            {isLoadingEnter ? "Loading..." : "Enter Room"}
+            {isLoadingEnter ? "Joining..." : "Enter Room"}
           </Button>
         </div>
       </div>
-      <div>
-        {error && (
-          <p className="text-red-500 mt-4 text-center font-bold">{error}</p>
-        )}
-      </div>
+  
+      {/* Error Message */}
+      {error && (
+        <div className="mt-8 max-w-4xl w-full text-center">
+          <p className="text-xl text-red-500 font-semibold">{error}</p>
+        </div>
+      )}
     </div>
   );
+  
+  
+  
 }

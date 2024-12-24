@@ -4,7 +4,7 @@ import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useEffect, useRef, useState } from "react";
-
+import { PaperAirplaneIcon } from "@heroicons/react/24/outline"; // Heroicons import
 import { ParamsStore } from "@zustandstore/redux";
 
 function AboutPage() {
@@ -81,49 +81,53 @@ function AboutPage() {
   }, [messages]);
 
   return (
-    <div className="px-6 bg-black h-full min-h-screen flex flex-col">
-      <h1 className="text-3xl font-bold mb-4 text-white fixed bg-black top-0 py-4 w-full z-10">
-        Chat Room Name : <i>{messages?.[0]?.room_id?.room_name}</i>
+    <div className=" bg-gradient-to-br from-purple-700 via-purple-800 to-purple-900 h-full min-h-screen flex flex-col">
+      {/* Header */}
+      <h1 className="text-4xl font-extrabold mb-6 text-white fixed  w-full top-0 py-4  z-20 shadow-xl flex items-center justify-center">
+        Chat Room Name:{" "}
+        <i className="ml-2 font-bold text-4xl">
+          {messages?.[0]?.room_id?.room_name}
+        </i>
       </h1>
 
       {/* Displaying error if any */}
-      {error && <p className="text-red-500 mb-4">{error}</p>}
+      {error && (
+        <p className="text-red-500 mb-6 text-center font-semibold text-lg">
+          {error}
+        </p>
+      )}
 
       {/* Displaying messages */}
-      <div className="overflow-y-auto flex-1  pt-[70px]">
-        {/* Add scrolling behavior */}
+      <div className="overflow-y-auto flex-1 pt-[90px] pb-20 px-6">
         {messages.length > 0 ? (
-          <ul className="list-disc list-inside">
+          <ul className="space-y-5">
             {messages.map((message, index) => {
               const isCurrentUser = message.user_id?.id === userId;
               return (
                 <li
                   key={index}
-                  className={`mb-2 flex ${
+                  className={`flex ${
                     isCurrentUser ? "justify-end" : "justify-start"
                   }`}
                 >
                   <div
-                    className={`flex flex-col max-w-xs ${
+                    className={`flex flex-col max-w-lg ${
                       isCurrentUser ? "items-end" : "items-start"
                     }`}
                   >
                     <span
-                      className={`p-2 rounded-lg break-all ${
+                      className={`p-4 rounded-lg break-all max-w-[80%] ${
                         isCurrentUser
-                          ? "bg-purple-600 text-white"
-                          : "bg-gray-700 text-white"
+                          ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg"
+                          : "bg-gray-800 text-white shadow-md"
                       }`}
                     >
                       {message.message}
-
-                      <p className="text-sm text-white">
+                      <p className="text-sm text-gray-300 mt-1">
                         {new Date(message.sent_at).toLocaleString()}
                       </p>
                     </span>
-                    <span
-                      className={`font-semibold  text-white capitalize break-all`}
-                    >
+                    <span className="font-semibold text-white mt-2 text-sm">
                       {message.user_id?.user_name}
                     </span>
                   </div>
@@ -132,26 +136,29 @@ function AboutPage() {
             })}
           </ul>
         ) : (
-          <p>No messages in this room yet.</p>
+          <p className="text-white text-center mt-10 font-medium">
+            No messages in this room yet.
+          </p>
         )}
         {/* Scroll reference at the end of messages */}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Form to send new message */}
-      <div className="mt-4 flex items-center space-x-2 sticky bottom-0 bg-black py-2">
+      <div className="mt-4 flex items-center space-x-4 sticky bottom-0  py-4 px-6 z-30 shadow-md">
         <Input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
           placeholder="Type a message"
-          className="p-2 border w-3/4 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-10 rounded-xl text-white font-bold"
+          className="p-3 w-full h-[40px] max-w-full text-lg bg-gray-800 text-white rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300 ease-in-out transform hover:scale-103"
         />
         <Button
           onClick={handleSendMessage}
-          className="p-2 bg-blue-500 text-white rounded-xl w-1/4 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 h-10"
+          className="p-2 bg-transparent text-white  hover:bg-transparent transition duration-200 transform hover:scale-110 flex items-center justify-center shadow-none"
         >
-          Send
+          <PaperAirplaneIcon className="!h-10 !w-10 text-purple-500 fill-purple-100" />{" "}
+          {/* Send Icon */}
         </Button>
       </div>
     </div>

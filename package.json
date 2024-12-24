@@ -13,6 +13,7 @@
     "refine": "refine"
   },
   "dependencies": {
+    "@heroicons/react": "^2.2.0",
     "@radix-ui/react-slot": "^1.1.1",
     "@refinedev/cli": "^2.16.21",
     "@refinedev/core": "^4.47.1",
