@@ -106,7 +106,7 @@ export default function IndexPage() {
         const userId = insertedData[0].id;
         setParamsData({ roomId: data.id, userId });
         // Navigate to the About page with the inserted user's id
-        router.push(`/about`);
+        router.push(`/chatRoom`);
       }
     }
 
@@ -118,7 +118,9 @@ export default function IndexPage() {
       <div className="flex flex-wrap justify-center gap-16 w-full max-w-6xl">
         {/* Create Room Card */}
         <div className="w-full sm:w-1/2 lg:w-1/3 bg-gradient-to-b from-purple-600 via-purple-700 to-purple-800 p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center transform transition-all duration-300 hover:scale-105 hover:shadow-2xl">
-          <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">Create a Room</h2>
+          <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">
+            Create a Room
+          </h2>
           <Input
             type="text"
             placeholder="Room Name"
@@ -126,29 +128,34 @@ export default function IndexPage() {
             onChange={(e) => setRoomName(e.target.value)}
             className="mb-6 p-4 border-2 border-purple-500 w-full text-black placeholder-purple-400 bg-white rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
           />
-  
+
           <Button
             onClick={handleCreateRoom}
             disabled={isLoadingCreate}
             className={`w-full p-4 text-white h-12 rounded-xl font-semibold transition-colors duration-300 ${
-              isLoadingCreate ? "bg-purple-400 cursor-not-allowed" : "bg-purple-700 hover:bg-purple-800"
+              isLoadingCreate
+                ? "bg-purple-400 cursor-not-allowed"
+                : "bg-purple-700 hover:bg-purple-800"
             }`}
           >
             {isLoadingCreate ? "Creating..." : "Generate Room"}
           </Button>
-  
+
           {generatedCode && (
             <div className="mt-6 p-4 bg-purple-50 rounded-lg shadow-inner">
               <p className="text-purple-800 font-semibold">
-                Room created! Code: <strong className="text-purple-600">{generatedCode}</strong>
+                Room created! Code:{" "}
+                <strong className="text-purple-600">{generatedCode}</strong>
               </p>
             </div>
           )}
         </div>
-  
+
         {/* Enter Room Card */}
         <div className="w-full sm:w-1/2 lg:w-1/3 bg-gradient-to-b from-purple-600 via-purple-700 to-purple-800 p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center transform transition-all duration-300 hover:scale-105 hover:shadow-2xl">
-          <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">Enter a Room</h2>
+          <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">
+            Enter a Room
+          </h2>
           <Input
             type="text"
             placeholder="Enter Room Code"
@@ -167,14 +174,16 @@ export default function IndexPage() {
             onClick={handleEnterRoom}
             disabled={isLoadingEnter}
             className={`w-full p-4 text-white h-12 rounded-xl font-semibold transition-colors duration-300 ${
-              isLoadingEnter ? "bg-purple-400 cursor-not-allowed" : "bg-purple-700 hover:bg-purple-800"
+              isLoadingEnter
+                ? "bg-purple-400 cursor-not-allowed"
+                : "bg-purple-700 hover:bg-purple-800"
             }`}
           >
             {isLoadingEnter ? "Joining..." : "Enter Room"}
           </Button>
         </div>
       </div>
-  
+
       {/* Error Message */}
       {error && (
         <div className="mt-8 max-w-4xl w-full text-center">
@@ -183,7 +192,4 @@ export default function IndexPage() {
       )}
     </div>
   );
-  
-  
-  
 }

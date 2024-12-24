@@ -4,17 +4,18 @@ import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { PaperAirplaneIcon } from "@heroicons/react/24/outline"; // Heroicons import
+import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { ParamsStore } from "@zustandstore/redux";
+import { FiCopy } from "react-icons/fi";
 
 function AboutPage() {
   const { paramsData } = ParamsStore();
   const roomId = paramsData?.roomId;
   const userId = paramsData?.userId;
-  const roomName = paramsData?.roomName;
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
+  const [copyMessage, setCopyMessage] = useState("");
 
   // Fetch messages from the room when the component loads
   useEffect(() => {
@@ -27,7 +28,7 @@ function AboutPage() {
       const { data, error } = await supabaseBrowserClient
         .from("messages")
         .select(
-          "message, sent_at, user_id(id, user_name), room_id(id, room_name)"
+          "message, sent_at, user_id(id, user_name), room_id(id, room_name, room_code)"
         )
         .eq("room_id", roomId)
         .order("sent_at", { ascending: true });
@@ -80,14 +81,46 @@ function AboutPage() {
     }
   }, [messages]);
 
+  const handleCopy = () => {
+    const roomCode = messages?.[0]?.room_id?.room_code;
+    if (roomCode) {
+      navigator.clipboard
+        .writeText(roomCode)
+        .then(() => {
+          setCopyMessage("Copied!");
+          setTimeout(() => {
+            setCopyMessage(""); // Clear the message after 2 seconds
+          }, 2000);
+        })
+        .catch((err) => {
+          console.error("Failed to copy: ", err);
+        });
+    }
+  };
   return (
     <div className=" bg-gradient-to-br from-purple-700 via-purple-800 to-purple-900 h-full min-h-screen flex flex-col">
       {/* Header */}
-      <h1 className="text-4xl font-extrabold mb-6 text-white fixed  w-full top-0 py-4  z-20 shadow-xl flex items-center justify-center">
-        Chat Room Name:{" "}
-        <i className="ml-2 font-bold text-4xl">
-          {messages?.[0]?.room_id?.room_name}
-        </i>
+      <h1 className="text-4xl font-extrabold mb-6 text-white fixed w-full top-0 py-4 z-20 shadow-xl flex items-center justify-between px-6 h-[80px] bg-gradient-to-br from-purple-700 via-purple-800 to-purple-900">
+        <div className="flex items-center space-x-4">
+          <span>Chat Room Name:</span>
+          <i className="font-bold text-4xl">
+            {messages?.[0]?.room_id?.room_name}
+          </i>
+        </div>
+        <div className="flex items-center space-x-4 flex-col gap-1">
+          <div className="gap-2 flex">
+            <span className="text-lg">{messages?.[0]?.room_id?.room_code}</span>
+            <button
+              onClick={handleCopy}
+              className="text-blue-500 hover:text-blue-700 transition-colors"
+            >
+              <FiCopy className="h-5 w-5" />
+            </button>
+          </div>
+          {copyMessage && (
+            <span className="text-green-500 text-sm">{copyMessage}</span>
+          )}
+        </div>
       </h1>
 
       {/* Displaying error if any */}
