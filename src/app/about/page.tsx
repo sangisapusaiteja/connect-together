@@ -5,13 +5,13 @@ import { Input } from "@*/components/ui/input";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useEffect, useRef, useState } from "react";
 
-import { useSearchParams } from "next/navigation";
+import { ParamsStore } from "@zustandstore/redux";
 
 function AboutPage() {
-  const searchParams = useSearchParams();
-  const roomId = parseInt(searchParams.get("roomId") ?? "", 10);
-  const userId = parseInt(searchParams.get("userId") ?? "", 10);
-
+  const { paramsData } = ParamsStore();
+  const roomId = paramsData?.roomId;
+  const userId = paramsData?.userId;
+  const roomName = paramsData?.roomName;
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState<string>("");
   const [error, setError] = useState<string | null>(null);

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
+import { ParamsStore } from "@zustandstore/redux";
 
 export default function IndexPage() {
   const router = useRouter();
@@ -60,6 +61,7 @@ export default function IndexPage() {
   const generateUniqueCode = () => {
     return Math.random().toString(36).substr(2, 6).toUpperCase();
   };
+  const { setParamsData } = ParamsStore();
 
   // Handle entering a room
   const handleEnterRoom = async () => {
@@ -102,9 +104,9 @@ export default function IndexPage() {
       } else {
         // Get the inserted user's id
         const userId = insertedData[0].id;
-
+        setParamsData({ roomId: data.id, userId });
         // Navigate to the About page with the inserted user's id
-        router.push(`/about?roomId=${data.id}&userId=${userId}`);
+        router.push(`/about`);
       }
     }
 
