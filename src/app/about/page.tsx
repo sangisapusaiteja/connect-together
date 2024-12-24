@@ -81,7 +81,7 @@ function AboutPage() {
   }, [messages]);
 
   return (
-    <div className="p-6 bg-black h-full min-h-screen flex flex-col">
+    <div className="px-6 bg-black h-full min-h-screen flex flex-col">
       <h1 className="text-3xl font-bold mb-4 text-white fixed bg-black top-0 py-4 w-full z-10">
         Chat Room Name : <i>{messages?.[0]?.room_id?.room_name}</i>
       </h1>
@@ -90,7 +90,7 @@ function AboutPage() {
       {error && <p className="text-red-500 mb-4">{error}</p>}
 
       {/* Displaying messages */}
-      <div className="overflow-y-auto flex-1 custom-scroll pb-20">
+      <div className="overflow-y-auto flex-1  pt-[70px]">
         {/* Add scrolling behavior */}
         {messages.length > 0 ? (
           <ul className="list-disc list-inside">
@@ -109,24 +109,23 @@ function AboutPage() {
                     }`}
                   >
                     <span
-                      className={`font-semibold ${
-                        isCurrentUser ? "text-blue-500" : "text-red-700"
-                      }`}
-                    >
-                      {message.user_id?.user_name}:
-                    </span>
-                    <span
                       className={`p-2 rounded-lg break-all ${
                         isCurrentUser
-                          ? "bg-purple-400 text-white"
-                          : "bg-red-400"
+                          ? "bg-purple-600 text-white"
+                          : "bg-gray-700 text-white"
                       }`}
                     >
                       {message.message}
+
+                      <p className="text-sm text-white">
+                        {new Date(message.sent_at).toLocaleString()}
+                      </p>
                     </span>
-                    <p className="text-sm text-gray-500">
-                      {new Date(message.sent_at).toLocaleString()}
-                    </p>
+                    <span
+                      className={`font-semibold  text-white capitalize break-all`}
+                    >
+                      {message.user_id?.user_name}
+                    </span>
                   </div>
                 </li>
               );
