@@ -98,30 +98,37 @@ function AboutPage() {
     }
   };
   return (
-    <div className=" bg-gradient-to-br from-purple-700 via-purple-800 to-purple-900 h-full min-h-screen flex flex-col">
+    <div className=" bg-black h-[100vh] flex flex-col w-full">
       {/* Header */}
-      <h1 className="text-4xl font-extrabold mb-6 text-white fixed w-full top-0 py-4 z-20 shadow-xl flex items-center justify-between px-6 h-[80px] bg-gradient-to-br from-purple-700 via-purple-800 to-purple-900">
-        <div className="flex items-center space-x-4">
-          <span>Chat Room Name:</span>
-          <i className="font-bold text-4xl">
-            {messages?.[0]?.room_id?.room_name}
-          </i>
-        </div>
-        <div className="flex items-center space-x-4 flex-col gap-1">
-          <div className="gap-2 flex">
-            <span className="text-lg">{messages?.[0]?.room_id?.room_code}</span>
-            <button
-              onClick={handleCopy}
-              className="text-blue-500 hover:text-blue-700 transition-colors"
-            >
-              <FiCopy className="h-5 w-5" />
-            </button>
+      <div className="sticky top-0 z-20  py-4 border-b-2 border-t-2 border-purple-600">
+        <h1 className="text-4xl font-extrabold  text-purple-600 flex items-center justify-between px-6 h-[80px]">
+          <div className="flex items-center flex-col gap-1">
+            <span>Room Name:</span>
+            <span>
+              <i className="font-bold text-3xl">
+                "&nbsp;{messages?.[0]?.room_id?.room_name}&nbsp;"
+              </i>
+            </span>
           </div>
-          {copyMessage && (
-            <span className="text-green-500 text-sm">{copyMessage}</span>
-          )}
-        </div>
-      </h1>
+          <div className="flex items-center space-x-4  gap-1">
+            {copyMessage && (
+              <span className="text-green-500 text-sm">{copyMessage}</span>
+            )}
+            <div className="gap-2 flex border-2 border-purple-600 rounded-3xl items-center px-4 py-3">
+              <span className="text-lg">
+                {messages?.[0]?.room_id?.room_code}
+              </span>
+
+              <button
+                onClick={handleCopy}
+                className="text-blue-500 hover:text-blue-700 transition-colors"
+              >
+                <FiCopy className="h-5 w-5 text-purple-600" />
+              </button>
+            </div>
+          </div>
+        </h1>
+      </div>
 
       {/* Displaying error if any */}
       {error && (
@@ -131,7 +138,7 @@ function AboutPage() {
       )}
 
       {/* Displaying messages */}
-      <div className="overflow-y-auto flex-1 pt-[90px] pb-20 px-6">
+      <div className="overflow-y-auto flex-1 pt-[90px] pb-20 px-6 custom-scrollbar">
         {messages.length > 0 ? (
           <ul className="space-y-5">
             {messages.map((message, index) => {
@@ -149,18 +156,24 @@ function AboutPage() {
                     }`}
                   >
                     <span
-                      className={`p-4 rounded-lg break-all max-w-[80%] ${
+                      className={`px-4 py-2 rounded-tl-3xl rounded-tr-3xl ${
                         isCurrentUser
-                          ? "bg-gradient-to-r from-purple-600 to-purple-700 text-white shadow-lg"
-                          : "bg-gray-800 text-white shadow-md"
-                      }`}
+                          ? "rounded-bl-3xl bg-purple-800 text-white text-xl border-2  border-white font-semibold "
+                          : "rounded-br-3xl bg-white text-black text-xl border-[3px] border-purple-600 font-semibold"
+                      } break-all`}
                     >
                       {message.message}
-                      <p className="text-sm text-gray-300 mt-1">
+                      <p
+                        className={`text-xs  mt-1 ${
+                          isCurrentUser
+                            ? "text-right text-white"
+                            : "text-left text-black"
+                        }`}
+                      >
                         {new Date(message.sent_at).toLocaleString()}
                       </p>
                     </span>
-                    <span className="font-semibold text-white mt-2 text-sm">
+                    <span className="font-semibold text-white mt-2 text-lg">
                       {message.user_id?.user_name}
                     </span>
                   </div>
@@ -178,19 +191,20 @@ function AboutPage() {
       </div>
 
       {/* Form to send new message */}
-      <div className="mt-4 flex items-center space-x-4 sticky bottom-0  py-4 px-6 z-30 shadow-md">
+      <div className=" flex items-center space-x-4 sticky bottom-0 py-4 px-6 z-30 shadow-md bg-black">
         <Input
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message"
-          className="p-3 w-full h-[40px] max-w-full text-lg bg-gray-800 text-white rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300 ease-in-out transform hover:scale-103"
+          placeholder="Type a message here  Connect together 😊..."
+          className="p-3 w-full h-[40px] max-w-full text-lg text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300 ease-in-out transform hover:scale-103 border-2 border-purple-600"
         />
+
         <Button
           onClick={handleSendMessage}
-          className="p-2 bg-transparent text-white  hover:bg-transparent transition duration-200 transform hover:scale-110 flex items-center justify-center shadow-none"
+          className="p-2 bg-transparent text-white hover:bg-transparent transition duration-200 transform hover:scale-110 flex items-center justify-center shadow-none"
         >
-          <PaperAirplaneIcon className="!h-10 !w-10 text-purple-500 fill-purple-100" />{" "}
+          <PaperAirplaneIcon className="!h-12 !w-12 text-purple-500" />{" "}
           {/* Send Icon */}
         </Button>
       </div>
@@ -200,7 +214,9 @@ function AboutPage() {
 export default function AboutPageWrapper() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <AboutPage />
+      <div className="flex  h-screen  w-full">
+        <AboutPage />
+      </div>
     </Suspense>
   );
 }
