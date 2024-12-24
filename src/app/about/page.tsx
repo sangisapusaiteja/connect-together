@@ -46,11 +46,9 @@ function AboutPage() {
       .channel(`room:${roomId}`) // Create a channel for the room
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "messages" },
+        { event: "*", schema: "public", table: "messages" },
         (payload) => {
-          if (payload.new.room_id === roomId) {
-            setMessages((prevMessages) => [...prevMessages, payload.new]);
-          }
+          fetchMessages();
         }
       )
       .subscribe();
