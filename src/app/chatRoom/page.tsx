@@ -7,8 +7,9 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
 import { ParamsStore } from "@zustandstore/redux";
 import { FiCopy } from "react-icons/fi";
+import { PersonalChatRoomPage } from "@app/components/personalChatRoom";
 
-function AboutPage() {
+function ChatRoom() {
   const { paramsData } = ParamsStore();
   const roomId = paramsData?.roomId;
   const userId = paramsData?.userId;
@@ -109,7 +110,7 @@ function AboutPage() {
     }
   };
   return (
-    <div className=" bg-black h-[100vh] flex flex-col w-full">
+    <div className=" bg-black h-[100vh] flex flex-col w-full border-l-2 border-b-2 border-purple-600">
       {/* Header */}
       <div className="sticky top-0 z-20  py-4 border-b-2 border-t-2 border-purple-600">
         <h1 className="text-4xl font-extrabold  text-purple-600 flex items-center justify-between px-6 h-[80px]">
@@ -169,7 +170,7 @@ function AboutPage() {
                     <span
                       className={`px-4 py-2 rounded-tl-3xl rounded-tr-3xl ${
                         isCurrentUser
-                          ? "rounded-bl-3xl bg-purple-800 text-white text-xl border-2  border-white font-semibold "
+                          ? "rounded-bl-3xl bg-purple-800 text-white text-xl border-2  border-white font-semibold"
                           : "rounded-br-3xl bg-white text-black text-xl border-[3px] border-purple-600 font-semibold"
                       } break-all`}
                     >
@@ -226,7 +227,8 @@ export default function AboutPageWrapper() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <div className="flex  h-screen  w-full">
-        <AboutPage />
+        <ChatRoom />
+        <PersonalChatRoomPage />
       </div>
     </Suspense>
   );
