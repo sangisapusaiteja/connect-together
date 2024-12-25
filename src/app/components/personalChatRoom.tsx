@@ -53,12 +53,6 @@ export const PersonalChatRoomPage = () => {
   }, []);
 
   useEffect(() => {
-    if (activeUserId) {
-      handleApiCall(userId, activeUserId);
-    }
-  }, [activeUserId, userId]);
-
-  useEffect(() => {
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: "smooth" });
     }
@@ -67,27 +61,41 @@ export const PersonalChatRoomPage = () => {
     setActiveUserId((prev) => (prev === id ? null : id));
   };
 
-  const handleApiCall = async (userId: any, id: any) => {
-    try {
-      const { data, error } = await supabaseBrowserClient
-        .from("personal_messages")
-        .select("*")
-        .or(
-          `and(from_id.eq.${userId},to_id.eq.${id}),and(from_id.eq.${id},to_id.eq.${userId})`
-        )
-        .eq("room_id", roomId)
-        .order("sent_at", { ascending: true });
+  useEffect(() => {
+    const fetchPersonalMessages = async () => {
+      if (userId && activeUserId) {
+        const { data, error } = await supabaseBrowserClient
+          .from("personal_messages")
+          .select("*")
+          .or(
+            `and(from_id.eq.${userId},to_id.eq.${activeUserId}),and(from_id.eq.${activeUserId},to_id.eq.${userId})`
+          )
+          .eq("room_id", roomId)
+          .order("sent_at", { ascending: true });
 
-      if (error) {
-        console.error("Error fetching data:", error.message);
-      } else {
-        console.log("Fetched data: ", data); // Log the fetched data
-        setMessageData(data); // Set the fetched data into the state
+        if (error) {
+          console.error("Error fetching data:", error.message);
+        } else {
+          console.log("Fetched data: ", data); // Log the fetched data
+          setMessageData(data); // Set the fetched data into the state
+        }
       }
-    } catch (err) {
-      console.error("Unexpected error:", err);
-    }
-  };
+    };
+    fetchPersonalMessages();
+    const messageSubscription = supabaseBrowserClient
+      .channel(`room4:${roomId}`) // Create a channel for the room
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "personal_messages" },
+        (payload) => {
+          fetchPersonalMessages();
+        }
+      )
+      .subscribe();
+    return () => {
+      messageSubscription.unsubscribe();
+    };
+  });
 
   return (
     <div className="gap-4 w-[50%] text-white bg-black p-6  border-2 border-purple-600">
