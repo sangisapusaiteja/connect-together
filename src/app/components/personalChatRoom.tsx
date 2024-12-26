@@ -95,7 +95,7 @@ export const PersonalChatRoomPage = () => {
     return () => {
       messageSubscription.unsubscribe();
     };
-  });
+  }, [activeUserId]);
 
   return (
     <div className="gap-4 w-[50%] text-white bg-black p-6  border-2 border-purple-600">
