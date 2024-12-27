@@ -108,7 +108,7 @@ export const PersonalChatRoomPage = () => {
           <h3 className="text-lg font-semibold">{item.user_id?.user_name}</h3>
           {activeUserId === item.user_id.id && (
             <div className="mt-2 p-2 border border-purple-600 bg-black max-h-[800px] overflow-y-auto custom-scrollbar rounded-xl">
-              <div className="max-h-[500px] pr-2 overflow-y-auto custom-scrollbar">
+              <div className="min-h-[100px] max-h-[500px] pr-2 overflow-y-auto custom-scrollbar">
                 {messageData ? (
                   messageData.map((message: any) => (
                     <div
@@ -136,7 +136,7 @@ export const PersonalChatRoomPage = () => {
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type a message here  Connect together 😊..."
+                  placeholder="Type to Connect 😊..."
                   className="p-3 w-full h-[40px] max-w-full text-lg text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300 ease-in-out transform hover:scale-103 border-2 border-purple-600"
                 />
 

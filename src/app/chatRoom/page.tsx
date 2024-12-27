@@ -18,17 +18,6 @@ function ChatRoom() {
   const [error, setError] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
 
-  // Redirect if roomId or userId is missing
-  if (!roomId || !userId) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-black  w-full">
-        <h1 className="text-white text-3xl font-bold">
-          Access Denied: Room ID or User ID is missing 😞...
-        </h1>
-      </div>
-    );
-  }
-
   // Fetch messages from the room when the component loads
   useEffect(() => {
     const fetchMessages = async () => {
@@ -208,7 +197,7 @@ function ChatRoom() {
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Type a message here  Connect together 😊..."
+          placeholder="Type to Connect 😊..."
           className="p-3 w-full h-[40px] max-w-full text-lg text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300 ease-in-out transform hover:scale-103 border-2 border-purple-600"
         />
 
@@ -224,6 +213,20 @@ function ChatRoom() {
   );
 }
 export default function AboutPageWrapper() {
+  const { paramsData } = ParamsStore();
+  const roomId = paramsData?.roomId;
+  const userId = paramsData?.userId;
+  // Redirect if roomId or userId is missing
+  if (!roomId || !userId) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-black  w-full">
+        <h1 className="text-white text-3xl font-bold">
+          Rejoin the room to continue chatting...
+          <button>Home</button>
+        </h1>
+      </div>
+    );
+  }
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <div className="flex  h-screen  w-full">
