@@ -10,6 +10,7 @@ import { PersonalChatRoomPage } from "@app/components/personalChatRoom";
 import CryptoJS from "crypto-js";
 import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
+import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 
 function ChatRoom() {
   const [messages, setMessages] = useState<any[]>([]);
@@ -93,7 +94,7 @@ function ChatRoom() {
         const { data, error } = await supabaseBrowserClient
           .from("messages")
           .select(
-            "message, sent_at, user_id(id, user_name), room_id(id, room_name, room_code)"
+            "message, sent_at, user_id(id, user_name,profile_pic), room_id(id, room_name, room_code)"
           )
           .eq("room_id", roomId)
           .order("sent_at", { ascending: true });
@@ -173,16 +174,66 @@ function ChatRoom() {
         });
     }
   };
+  const [profilePic, setProfilePic] = useState(null);
+
+  useEffect(() => {
+    const fetchProfilePic = async () => {
+      try {
+        const { data, error } = await supabaseBrowserClient
+          .from("users")
+          .select("profile_pic")
+          .eq("id", userId)
+          .single();
+
+        if (error) {
+          console.log("Error fetching profile picture:", error);
+
+          setError("Failed to fetch profile picture.");
+          return;
+        }
+
+        if (data) {
+          setProfilePic(data.profile_pic);
+        }
+      } catch (err) {
+        console.error("Error fetching profile picture:", err);
+        setError("An error occurred while fetching the profile picture.");
+      }
+    };
+
+    if (userId) {
+      fetchProfilePic();
+    }
+  }, [userId]);
+
   return (
-    <div className=" bg-black h-[100vh] flex flex-col w-full border-l-2 border-b-2 border-purple-600">
+    <div className=" bg-black h-[100vh] flex flex-col w-full border-l-2  border-r-2 border-b-2 border-purple-600">
       {/* Header */}
       <div className="sticky top-0 z-20  py-4 border-b-2 border-t-2 border-purple-600">
         <h1 className="text-4xl font-extrabold  text-purple-600 flex items-center justify-between px-6 h-[80px]">
-          <div className="flex items-center flex-col gap-1">
-            <span>Room Name:</span>
-            <span>
-              <i className="font-bold text-3xl">"&nbsp;{roomName}&nbsp;"</i>
-            </span>
+          <div className="flex items-center  gap-4">
+            <div className="profile-container">
+              {error && <p className="error-message">{error}</p>}
+              <Avatar>
+                {profilePic ? (
+                  <AvatarImage
+                    src={profilePic}
+                    alt={`${userId}'s Profile`}
+                    className="rounded-full border-2 border-purple-600 h-[100px] w-[100px]"
+                  />
+                ) : (
+                  <AvatarFallback>
+                    
+                  </AvatarFallback>
+                )}
+              </Avatar>
+            </div>
+            <div className="flex flex-col items-center gap-2">
+              <span>Room Name:</span>
+              <span>
+                <i className="font-bold text-3xl">"&nbsp;{roomName}&nbsp;"</i>
+              </span>
+            </div>
           </div>
           <div className="flex items-center space-x-4  gap-1">
             {copyMessage && (
@@ -222,6 +273,15 @@ function ChatRoom() {
                     isCurrentUser ? "justify-end" : "justify-start"
                   }`}
                 >
+                  <div>
+                    {!isCurrentUser && message.user_id?.profile_pic && (
+                      <img
+                        src={message.user_id.profile_pic}
+                        alt="Profile"
+                        className="w-[70px] h-[70px] rounded-full object-cover mr-2 border-2 border-purple-600"
+                      />
+                    )}
+                  </div>
                   <div
                     className={`flex flex-col max-w-lg ${
                       isCurrentUser ? "items-end" : "items-start"
@@ -248,6 +308,15 @@ function ChatRoom() {
                     <span className="font-semibold text-white mt-2 text-lg">
                       {message.user_id?.user_name}
                     </span>
+                  </div>
+                  <div>
+                    {isCurrentUser && message.user_id?.profile_pic && (
+                      <img
+                        src={message.user_id.profile_pic}
+                        alt="Profile"
+                        className="w-[70px] h-[70px] rounded-full object-cover ml-2 border-2 border-white"
+                      />
+                    )}
                   </div>
                 </li>
               );

@@ -7,6 +7,7 @@ import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
 import { FiCopy } from "react-icons/fi";
 import CryptoJS from "crypto-js";
+import { Label } from "@radix-ui/react-label";
 
 export default function IndexPage() {
   const router = useRouter();
@@ -19,8 +20,53 @@ export default function IndexPage() {
   const [isLoadingEnter, setIsLoadingEnter] = useState<boolean>(false);
   const [copyMessage, setCopyMessage] = useState("");
   const secretKey = "key";
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Handle room creation
+  const uploadPhoto = async () => {
+    if (!file) {
+      alert("Please select a file first.");
+      return null; // Return null if no file is uploaded
+    }
+
+    try {
+      setUploading(true);
+
+      // Generate a unique file name
+      const fileName = `avatar-${Date.now()}-${file.name}`;
+
+      // Upload the file to the "avatars" bucket
+      const { data: uploadData, error: uploadError } =
+        await supabaseBrowserClient.storage
+          .from("avatars")
+          .upload(fileName, file, {
+            cacheControl: "3600", // Cache for 1 hour
+            upsert: false, // Avoid overwriting
+          });
+
+      if (uploadError) {
+        console.error("Error uploading file:", uploadError.message);
+        alert("Error uploading file!");
+        return null;
+      }
+
+      // Get the public URL for the uploaded file
+      const {
+        data: { publicUrl },
+      } = supabaseBrowserClient.storage.from("avatars").getPublicUrl(fileName);
+
+      console.log("File uploaded successfully:", publicUrl);
+      return publicUrl;
+    } catch (error) {
+      console.error("Error during file upload:", error);
+      return null;
+    } finally {
+      setUploading(false);
+      setFile(null); // Reset the file input
+    }
+  };
+
   const handleCreateRoom = async () => {
     setIsLoadingCreate(true);
     setError(null);
@@ -60,12 +106,6 @@ export default function IndexPage() {
     setIsLoadingCreate(false);
   };
 
-  // Generate a unique room code (you can customize this as needed)
-  const generateUniqueCode = () => {
-    return Math.random().toString(36).substr(2, 6).toUpperCase();
-  };
-
-  // Handle entering a room
   const handleEnterRoom = async () => {
     setIsLoadingEnter(true);
     setError(null);
@@ -74,6 +114,17 @@ export default function IndexPage() {
       setError("Please provide a room code and your name.");
       setIsLoadingEnter(false);
       return;
+    }
+
+    // Check if a photo is uploaded and get its public URL if provided
+    let publicUrl = null;
+    if (file) {
+      publicUrl = await uploadPhoto();
+      if (!publicUrl) {
+        setError("Failed to upload photo. Please try again.");
+        setIsLoadingEnter(false);
+        return;
+      }
     }
 
     // Check if the room exists
@@ -95,6 +146,7 @@ export default function IndexPage() {
               {
                 room_id: data.id,
                 user_name: personName,
+                profile_pic: publicUrl, // This will be null if no photo is uploaded
               },
             ],
             { onConflict: "room_id, user_name" }
@@ -119,12 +171,10 @@ export default function IndexPage() {
           userIdStr,
           secretKey
         ).toString();
-
         const encryptedRoomName = CryptoJS.AES.encrypt(
           roomName,
           secretKey
         ).toString();
-
         const encryptedRoomCode = CryptoJS.AES.encrypt(
           roomCode,
           secretKey
@@ -146,6 +196,11 @@ export default function IndexPage() {
     setIsLoadingEnter(false);
   };
 
+  // Generate a unique room code (you can customize this as needed)
+  const generateUniqueCode = () => {
+    return Math.random().toString(36).substr(2, 6).toUpperCase();
+  };
+
   const handleCopy = () => {
     const roomCode = generatedCode;
     if (roomCode) {
@@ -162,6 +217,14 @@ export default function IndexPage() {
         });
     }
   };
+
+  const handleFileChange = (event: any) => {
+    const selectedFile = event.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+    }
+  };
+
   return (
     <div className="flex flex-col justify-center items-center p-12 bg-black h-[100vh] overflow-y-auto custom-scrollbar">
       <div className="flex flex-wrap justify-center gap-16 w-full max-w-6xl">
@@ -236,10 +299,20 @@ export default function IndexPage() {
             onChange={(e) => setPersonName(e.target.value)}
             className="mb-6 p-4 border-2 border-purple-500 w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white"
           />
+          <div className="grid w-full max-w-sm items-center gap-1.5">
+            <Input
+              id="picture"
+              type="file"
+              onChange={handleFileChange}
+              disabled={uploading}
+              className="mb-6 border-2 border-purple-500 w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white"
+            />
+          </div>
+
           <Button
             onClick={handleEnterRoom}
             disabled={isLoadingEnter}
-            className={`w-full p-4 text-white h-12 rounded-xl font-semibold   transform transition-all duration-300 hover:scale-105  ${
+            className={`w-full p-4 text-white h-12 rounded-xl font-semibold transform transition-all duration-300 hover:scale-105 ${
               isLoadingEnter
                 ? "bg-purple-400 cursor-not-allowed"
                 : "bg-purple-700 hover:bg-purple-800"
