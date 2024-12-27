@@ -229,7 +229,7 @@ export default function IndexPage() {
     <div className="flex flex-col justify-center items-center p-12 bg-black h-[100vh] overflow-y-auto custom-scrollbar">
       <div className="flex flex-wrap justify-center gap-16 w-full max-w-6xl">
         {/* Create Room Card */}
-        <div className="w-full sm:w-1/2 lg:w-1/3 border border-purple-500 p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center ">
+        <div className="w-full sm:w-1/2 lg:w-1/3 border border-[#3A3A40] p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center bg-[#131314]">
           <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">
             Create a Room
           </h2>
@@ -238,34 +238,31 @@ export default function IndexPage() {
             placeholder="Room Name"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
-            className="mb-6 p-4 border-2 border-purple-500 w-full  placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white"
+            className="mb-6 p-4 border-2 border-[#3A3A40] w-full  placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white bg-black"
           />
 
           <Button
             onClick={handleCreateRoom}
             disabled={isLoadingCreate}
-            className={`w-full p-4 text-white h-12 rounded-xl font-semibold  transform transition-all duration-300 hover:scale-105  ${
+            className={`w-full p-4 text-white h-12 rounded-xl font-semibold  transform transition-all duration-300  ${
               isLoadingCreate
-                ? "bg-purple-400 cursor-not-allowed"
-                : "bg-purple-700 hover:bg-purple-800"
+                ? "bg-black cursor-not-allowed"
+                : "bg-black border border-[#3A3A40]  "
             }`}
           >
             {isLoadingCreate ? "Creating..." : "Generate Room"}
           </Button>
 
           {generatedCode && (
-            <div className="mt-6 p-4 rounded-lg shadow-inner bg-black">
-              <p className="text-purple-800 font-semibold flex items-center gap-2">
-                Room created! Code:{" "}
+            <div className="mt-6 p-4 rounded-lg shadow-inner ">
+              <p className="text-white font-semibold flex items-center gap-2">
+                Room created! Code:
                 <strong className="text-green-600">{generatedCode}</strong>
                 {copyMessage ? (
                   <span className="text-green-500 text-sm">{copyMessage}</span>
                 ) : (
-                  <button
-                    onClick={handleCopy}
-                    className="text-blue-500 hover:text-blue-700 transition-colors flex items-center"
-                  >
-                    <FiCopy className="h-4 w-4 text-purple-600" />
+                  <button onClick={handleCopy}>
+                    <FiCopy className="h-4 w-4 text-white" />
                   </button>
                 )}
               </p>
@@ -275,13 +272,13 @@ export default function IndexPage() {
 
         {/* Divider */}
         <div className="w-full flex items-center justify-center">
-          <div className="border-t border-purple-500 w-1/6"></div>
+          <div className="border-t border-[#3A3A40] w-1/6"></div>
           <span className="mx-4 text-white font-semibold">OR</span>
-          <div className="border-t border-purple-500 w-1/6"></div>
+          <div className="border-t border-[#3A3A40] w-1/6"></div>
         </div>
 
         {/* Enter Room Card */}
-        <div className="w-full sm:w-1/2 lg:w-1/3 border border-purple-500 p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center">
+        <div className="w-full sm:w-1/2 lg:w-1/3 border border-[#3A3A40] p-8 rounded-3xl shadow-3xl flex flex-col items-center justify-center bg-[#131314]">
           <h2 className="text-4xl font-extrabold mb-6 text-white drop-shadow-lg">
             Enter a Room
           </h2>
@@ -290,14 +287,14 @@ export default function IndexPage() {
             placeholder="Enter Room Code"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
-            className="mb-6 p-4 border-2 border-purple-500 w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white"
+            className="bg-black mb-6 p-4 border-2 border-[#3A3A40] w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white"
           />
           <Input
             type="text"
             placeholder="Your Name"
             value={personName}
             onChange={(e) => setPersonName(e.target.value)}
-            className="mb-6 p-4 border-2 border-purple-500 w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white"
+            className="bg-black mb-6 p-4 border-2 border-[#3A3A40] w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white"
           />
           <div className="grid w-full max-w-sm items-center gap-1.5">
             <Input
@@ -305,17 +302,17 @@ export default function IndexPage() {
               type="file"
               onChange={handleFileChange}
               disabled={uploading}
-              className="mb-6 border-2 border-purple-500 w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-white"
+              className="bg-black mb-6 border-2 border-[#3A3A40] w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white"
             />
           </div>
 
           <Button
             onClick={handleEnterRoom}
             disabled={isLoadingEnter}
-            className={`w-full p-4 text-white h-12 rounded-xl font-semibold transform transition-all duration-300 hover:scale-105 ${
+            className={`w-full p-4 text-white h-12 rounded-xl font-semibold  transform transition-all duration-300  ${
               isLoadingEnter
-                ? "bg-purple-400 cursor-not-allowed"
-                : "bg-purple-700 hover:bg-purple-800"
+                ? "bg-black cursor-not-allowed"
+                : "bg-black border border-[#3A3A40]  "
             }`}
           >
             {isLoadingEnter ? "Joining..." : "Enter Room"}
@@ -326,7 +323,7 @@ export default function IndexPage() {
       {/* Error Message */}
       {error && (
         <div className="mt-8 max-w-4xl w-full text-center">
-          <p className="text-xl text-red-500 font-semibold">{error}</p>
+          <p className="text-xl text-white font-semibold">{error}</p>
         </div>
       )}
     </div>

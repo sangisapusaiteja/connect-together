@@ -142,25 +142,27 @@ export const PersonalChatRoomPage = () => {
   }, [activeUserId]);
 
   return (
-    <div className="gap-4 w-[50%] text-white bg-black p-6  border-2 border-purple-600">
+    <div className="my-10 mr-10 ml-5 bg-[#131314] flex flex-col w-[50%] rounded-3xl">
       {uniqueUsers.map((item) => (
         <div
           key={item.user_id.id}
-          className="border border-purple-600 p-4 rounded-xl shadow-md cursor-pointer mb-2"
+          className="border border-white mx-4 p-4 mt-4 rounded-3xl cursor-pointer"
           onClick={() => handleClick(item.user_id.id)}
         >
-          <h3 className="text-lg font-semibold">{item.user_id?.user_name}</h3>
+          <h3 className="text-white text-lg font-semibold">
+            {item.user_id?.user_name}
+          </h3>
           {activeUserId === item.user_id.id && (
-            <div className="mt-2 p-2 border border-purple-600 bg-black max-h-[800px] overflow-y-auto custom-scrollbar rounded-xl">
-              <div className="min-h-[100px] max-h-[500px] pr-2 overflow-y-auto custom-scrollbar">
+            <div className="py-2 pl-2 border-2 border-[#3A3A40] bg-black max-h-[800px] rounded-2xl">
+              <div className="min-h-[100px] max-h-[500px] overflow-y-auto custom-scrollbar">
                 {messageData ? (
                   messageData.map((message: any) => (
                     <div
                       key={message.id}
                       className={`px-4 py-2 rounded-tl-3xl rounded-tr-3xl ${
                         message.from_id === userId
-                          ? "rounded-bl-3xl bg-purple-800 text-white text-xl w-fit ml-auto"
-                          : "rounded-br-3xl bg-white text-black text-xl w-fit mr-auto"
+                          ? "rounded-bl-3xl bg-white text-black text-xl w-fit ml-auto mr-2"
+                          : "rounded-br-3xl bg-[#3A3A40] text-white text-xl w-fit mr-auto"
                       } break-all mb-1`}
                     >
                       <p>{message.message}</p>
@@ -173,7 +175,7 @@ export const PersonalChatRoomPage = () => {
                 <div ref={bottomRef} />
               </div>
               <div
-                className="flex items-center space-x-4 sticky bottom-0  z-30 shadow-md bg-black pt-4"
+                className="flex items-center border  rounded-3xl h-10 pr-3 mt-2 w-full"
                 onClick={(e) => e.stopPropagation()} // Prevent closing on input click
               >
                 <Input
@@ -181,7 +183,7 @@ export const PersonalChatRoomPage = () => {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type to Connect 😊..."
-                  className="p-3 w-full h-[40px] max-w-full text-lg text-white rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 transition duration-300 ease-in-out transform hover:scale-103 border-2 border-purple-600"
+                  className="border-none text-white ml-4"
                 />
 
                 <Button
@@ -194,9 +196,9 @@ export const PersonalChatRoomPage = () => {
                     );
                     setNewMessage(""); // Clear the input after sending the message
                   }}
-                  className="p-2 bg-transparent text-white hover:bg-transparent transition duration-200 transform hover:scale-110 flex items-center justify-center shadow-none"
+                  className="bg-black hover:bg-black text-white hover:text-green-500 w-5"
                 >
-                  <PaperAirplaneIcon className="!h-8 !w-8 text-purple-500" />
+                  <PaperAirplaneIcon className="!h-8 !w-8" />
                 </Button>
               </div>
             </div>
