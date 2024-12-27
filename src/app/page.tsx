@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
-import { ParamsStore } from "@zustandstore/redux";
 import { FiCopy } from "react-icons/fi";
+import CryptoJS from "crypto-js";
 
 export default function IndexPage() {
   const router = useRouter();
@@ -18,6 +18,7 @@ export default function IndexPage() {
   const [isLoadingCreate, setIsLoadingCreate] = useState<boolean>(false);
   const [isLoadingEnter, setIsLoadingEnter] = useState<boolean>(false);
   const [copyMessage, setCopyMessage] = useState("");
+  const secretKey = "key";
 
   // Handle room creation
   const handleCreateRoom = async () => {
@@ -63,7 +64,6 @@ export default function IndexPage() {
   const generateUniqueCode = () => {
     return Math.random().toString(36).substr(2, 6).toUpperCase();
   };
-  const { setParamsData } = ParamsStore();
 
   // Handle entering a room
   const handleEnterRoom = async () => {
@@ -79,7 +79,7 @@ export default function IndexPage() {
     // Check if the room exists
     const { data, error } = await supabaseBrowserClient
       .from("rooms")
-      .select("id, room_code")
+      .select("id, room_code, room_name")
       .eq("room_code", roomCode)
       .single();
 
@@ -104,11 +104,42 @@ export default function IndexPage() {
       if (insertError) {
         setError(insertError.message);
       } else {
-        // Get the inserted user's id
         const userId = insertedData[0].id;
-        setParamsData({ roomId: data.id, userId });
-        // Navigate to the About page with the inserted user's id
-        router.push(`/chatRoom`);
+        const roomId = data.id;
+        const roomName = data.room_name;
+        const roomCode = data.room_code;
+        const roomIdStr = String(roomId);
+        const userIdStr = String(userId);
+
+        const encryptedRoomId = CryptoJS.AES.encrypt(
+          roomIdStr,
+          secretKey
+        ).toString();
+        const encryptedUserId = CryptoJS.AES.encrypt(
+          userIdStr,
+          secretKey
+        ).toString();
+
+        const encryptedRoomName = CryptoJS.AES.encrypt(
+          roomName,
+          secretKey
+        ).toString();
+
+        const encryptedRoomCode = CryptoJS.AES.encrypt(
+          roomCode,
+          secretKey
+        ).toString();
+
+        // Navigate with encrypted parameters
+        router.push(
+          `/chatRoom?roomId=${encodeURIComponent(
+            encryptedRoomId
+          )}&userId=${encodeURIComponent(
+            encryptedUserId
+          )}&roomName=${encodeURIComponent(
+            encryptedRoomName
+          )}&roomCode=${encodeURIComponent(encryptedRoomCode)}`
+        );
       }
     }
 

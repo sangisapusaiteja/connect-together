@@ -2,20 +2,64 @@
 
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { useEffect, useRef, useState } from "react";
-import { ParamsStore } from "@zustandstore/redux";
 import { Input } from "@*/components/ui/input";
 import { Button } from "@*/components/ui/button";
 import PaperAirplaneIcon from "@heroicons/react/24/outline/PaperAirplaneIcon";
+import CryptoJS from "crypto-js";
+import { useSearchParams } from "next/navigation";
 
 export const PersonalChatRoomPage = () => {
-  const { paramsData } = ParamsStore();
-  const roomId = paramsData?.roomId;
-  const userId = paramsData?.userId;
   const [uniqueUsers, setUniqueUsers] = useState<any[]>([]);
   const [activeUserId, setActiveUserId] = useState(null);
   const [newMessage, setNewMessage] = useState<string>("");
   const [messageData, setMessageData] = useState<any[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const secretKey = "key"; // Same key used for encryption
+
+  const searchParams = useSearchParams();
+  const encryptedRoomId = searchParams.get("roomId");
+  const encryptedUserId = searchParams.get("userId");
+
+  const [roomId, setRoomId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [error, setError] = useState<string>("");
+
+  useEffect(() => {
+    if (encryptedRoomId && encryptedUserId) {
+      try {
+        // Decrypt the parameters
+        const decryptedRoomIdBytes = CryptoJS.AES.decrypt(
+          decodeURIComponent(encryptedRoomId),
+          secretKey
+        );
+        const decryptedUserIdBytes = CryptoJS.AES.decrypt(
+          decodeURIComponent(encryptedUserId),
+          secretKey
+        );
+
+        const decryptedRoomId = parseInt(
+          decryptedRoomIdBytes.toString(CryptoJS.enc.Utf8),
+          10
+        );
+        const decryptedUserId = parseInt(
+          decryptedUserIdBytes.toString(CryptoJS.enc.Utf8),
+          10
+        );
+
+        // Ensure they are valid numbers
+        if (isNaN(decryptedRoomId) || isNaN(decryptedUserId)) {
+          throw new Error("Decryption resulted in invalid numbers");
+        }
+
+        setRoomId(decryptedRoomId);
+        setUserId(decryptedUserId);
+      } catch (e) {
+        console.error("Decryption error:", e);
+        setError("Decryption error occurred");
+      }
+    }
+  }, [encryptedRoomId, encryptedUserId]);
 
   useEffect(() => {
     // Function to fetch all messages
@@ -50,7 +94,7 @@ export const PersonalChatRoomPage = () => {
         }
       )
       .subscribe();
-  }, []);
+  }, [roomId]);
 
   useEffect(() => {
     if (bottomRef.current) {

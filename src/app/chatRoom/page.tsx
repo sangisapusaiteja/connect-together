@@ -5,39 +5,109 @@ import { Input } from "@*/components/ui/input";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
-import { ParamsStore } from "@zustandstore/redux";
 import { FiCopy } from "react-icons/fi";
 import { PersonalChatRoomPage } from "@app/components/personalChatRoom";
+import CryptoJS from "crypto-js";
+import { useSearchParams } from "next/navigation";
+import { useParamsStore } from "@zustandstore/redux";
 
 function ChatRoom() {
-  const { paramsData } = ParamsStore();
-  const roomId = paramsData?.roomId;
-  const userId = paramsData?.userId;
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState<string>("");
-  const [error, setError] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState("");
+  const secretKey = "key"; // Same key used for encryption
 
+  const searchParams = useSearchParams();
+  const encryptedRoomId = searchParams.get("roomId");
+  const encryptedUserId = searchParams.get("userId");
+  const encryptedRoomName = searchParams.get("roomName");
+  const encryptedRoomCode = searchParams.get("roomCode");
+
+  const [roomId, setRoomId] = useState<number | null>(null);
+  const [userId, setUserId] = useState<number | null>(null);
+  const [roomName, setRoomName] = useState<string | null>(null);
+  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [error, setError] = useState<string>("");
+
+  const setMessageLength = useParamsStore((state) => state.setMessageLength);
+
+  useEffect(() => {
+    if (encryptedRoomId && encryptedUserId) {
+      try {
+        // Decrypt the parameters
+        const decryptedRoomIdBytes = CryptoJS.AES.decrypt(
+          decodeURIComponent(encryptedRoomId),
+          secretKey
+        );
+        const decryptedUserIdBytes = CryptoJS.AES.decrypt(
+          decodeURIComponent(encryptedUserId),
+          secretKey
+        );
+
+        const decryptedRoomNameBytes = CryptoJS.AES.decrypt(
+          decodeURIComponent(encryptedRoomName ?? ""),
+          secretKey
+        );
+
+        const decryptedRoomCodeBytes = CryptoJS.AES.decrypt(
+          decodeURIComponent(encryptedRoomCode ?? ""),
+          secretKey
+        );
+        const decryptedRoomId = parseInt(
+          decryptedRoomIdBytes.toString(CryptoJS.enc.Utf8),
+          10
+        );
+        const decryptedUserId = parseInt(
+          decryptedUserIdBytes.toString(CryptoJS.enc.Utf8),
+          10
+        );
+
+        const decryptedRoomName = decryptedRoomNameBytes.toString(
+          CryptoJS.enc.Utf8
+        );
+
+        const decryptedRoomCode = decryptedRoomCodeBytes.toString(
+          CryptoJS.enc.Utf8
+        );
+        // Ensure they are valid numbers
+        if (isNaN(decryptedRoomId) || isNaN(decryptedUserId)) {
+          throw new Error("Decryption resulted in invalid numbers");
+        }
+
+        setRoomId(decryptedRoomId);
+        setUserId(decryptedUserId);
+        setRoomName(decryptedRoomName);
+        setRoomCode(decryptedRoomCode);
+      } catch (e) {
+        console.error("Decryption error:", e);
+        setError("Decryption error occurred");
+      }
+    }
+  }, [encryptedRoomId, encryptedUserId]);
   // Fetch messages from the room when the component loads
   useEffect(() => {
+    if (roomId === null) return; // Wait until roomId is resolved
+
     const fetchMessages = async () => {
-      if (!roomId) {
-        setError("Room not found.");
-        return;
-      }
+      try {
+        const { data, error } = await supabaseBrowserClient
+          .from("messages")
+          .select(
+            "message, sent_at, user_id(id, user_name), room_id(id, room_name, room_code)"
+          )
+          .eq("room_id", roomId)
+          .order("sent_at", { ascending: true });
 
-      const { data, error } = await supabaseBrowserClient
-        .from("messages")
-        .select(
-          "message, sent_at, user_id(id, user_name), room_id(id, room_name, room_code)"
-        )
-        .eq("room_id", roomId)
-        .order("sent_at", { ascending: true });
-
-      if (error) {
-        setError(error.message);
-      } else {
-        setMessages(data);
+        if (error) {
+          console.error("Error fetching messages:", error);
+          setError(error.message);
+        } else {
+          setMessageLength(data.length);
+          setMessages(data);
+        }
+      } catch (err) {
+        console.error("Error fetching messages:", err);
+        setError("Something went wrong");
       }
     };
 
@@ -54,7 +124,12 @@ function ChatRoom() {
         }
       )
       .subscribe();
-  }, []);
+
+    // Cleanup subscription when roomId changes or component unmounts
+    return () => {
+      supabaseBrowserClient.removeChannel(messageSubscription);
+    };
+  }, [roomId]);
 
   // Send a new message to the room
   const handleSendMessage = async () => {
@@ -106,9 +181,7 @@ function ChatRoom() {
           <div className="flex items-center flex-col gap-1">
             <span>Room Name:</span>
             <span>
-              <i className="font-bold text-3xl">
-                "&nbsp;{messages?.[0]?.room_id?.room_name}&nbsp;"
-              </i>
+              <i className="font-bold text-3xl">"&nbsp;{roomName}&nbsp;"</i>
             </span>
           </div>
           <div className="flex items-center space-x-4  gap-1">
@@ -116,9 +189,7 @@ function ChatRoom() {
               <span className="text-green-500 text-sm">{copyMessage}</span>
             )}
             <div className="gap-2 flex border-2 border-purple-600 rounded-3xl items-center px-4 py-3">
-              <span className="text-lg">
-                {messages?.[0]?.room_id?.room_code}
-              </span>
+              <span className="text-lg">{roomCode}</span>
 
               <button
                 onClick={handleCopy}
@@ -213,25 +284,14 @@ function ChatRoom() {
   );
 }
 export default function AboutPageWrapper() {
-  const { paramsData } = ParamsStore();
-  const roomId = paramsData?.roomId;
-  const userId = paramsData?.userId;
   // Redirect if roomId or userId is missing
-  if (!roomId || !userId) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-black  w-full">
-        <h1 className="text-white text-3xl font-bold">
-          Rejoin the room to continue chatting...
-          <button>Home</button>
-        </h1>
-      </div>
-    );
-  }
+  const messageLength = useParamsStore((state) => state.messageLength);
+
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <div className="flex  h-screen  w-full">
         <ChatRoom />
-        <PersonalChatRoomPage />
+        {messageLength > 0 && <PersonalChatRoomPage />}
       </div>
     </Suspense>
   );

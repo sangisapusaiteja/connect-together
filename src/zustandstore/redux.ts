@@ -1,15 +1,15 @@
 import { create } from "zustand";
 
 interface ParamsStore {
-  paramsData: any;
-  setParamsData: (by: any) => void;
+  messageLength: number;
+  setMessageLength: (length: number) => void;
 }
 
-export const ParamsStore = create<ParamsStore>((set: any) => ({
-  paramsData: {},
-  setParamsData: (data: any) => {
+export const useParamsStore = create<ParamsStore>((set) => ({
+  messageLength: 0, // Default value is a number
+  setMessageLength: (length) => {
     set(() => ({
-      paramsData: data,
+      messageLength: length,
     }));
   },
 }));
