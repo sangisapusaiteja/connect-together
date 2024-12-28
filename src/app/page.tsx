@@ -137,20 +137,26 @@ export default function IndexPage() {
     if (error || !data) {
       setError("Invalid room code. Please try again.");
     } else {
+      // Prepare the user data
+      const userData: {
+        room_id: any;
+        user_name: string;
+        profile_pic?: string;
+      } = {
+        room_id: data.id,
+        user_name: personName,
+      };
+
+      // Include profile_pic only if a new photo is uploaded
+      if (publicUrl) {
+        userData.profile_pic = publicUrl;
+      }
+
       // Insert the user into the users table
       const { data: insertedData, error: insertError } =
         await supabaseBrowserClient
           .from("users")
-          .upsert(
-            [
-              {
-                room_id: data.id,
-                user_name: personName,
-                profile_pic: publicUrl, // This will be null if no photo is uploaded
-              },
-            ],
-            { onConflict: "room_id, user_name" }
-          )
+          .upsert([userData], { onConflict: "room_id, user_name" })
           .select("id");
 
       if (insertError) {
@@ -297,6 +303,9 @@ export default function IndexPage() {
             className="bg-black mb-6 p-4 border-2 border-[#3A3A40] w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white"
           />
           <div className="grid w-full max-w-sm items-center gap-1.5">
+            <Label className="pl-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 text-white">
+              Upload Profile Picture
+            </Label>
             <Input
               id="picture"
               type="file"

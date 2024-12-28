@@ -222,7 +222,11 @@ function ChatRoom() {
                     className="rounded-full border-[3px] border-[#3A3A40] h-[100px] w-[100px]"
                   />
                 ) : (
-                  <AvatarFallback></AvatarFallback>
+                  <img
+                    src={"/assets/default_image.png"}
+                    alt="Profile"
+                    className="w-[100px] h-[100px] rounded-full object-cover mr-2 border-2"
+                  />
                 )}
               </Avatar>
             </div>
@@ -272,9 +276,12 @@ function ChatRoom() {
                   }`}
                 >
                   <div>
-                    {!isCurrentUser && message.user_id?.profile_pic && (
+                    {!isCurrentUser && (
                       <img
-                        src={message.user_id.profile_pic}
+                        src={
+                          message.user_id?.profile_pic ||
+                          "/assets/default_image.png"
+                        }
                         alt="Profile"
                         className="w-[70px] h-[70px] rounded-full object-cover mr-2 border-2"
                       />
@@ -306,9 +313,12 @@ function ChatRoom() {
                     </span>
                   </div>
                   <div>
-                    {isCurrentUser && message.user_id?.profile_pic && (
+                    {isCurrentUser && (
                       <img
-                        src={message.user_id.profile_pic}
+                        src={
+                          message.user_id?.profile_pic ||
+                          "/assets/default_image.png"
+                        }
                         alt="Profile"
                         className="w-[70px] h-[70px] rounded-full object-cover ml-2 border-2 border-white"
                       />

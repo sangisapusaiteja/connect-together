@@ -67,7 +67,7 @@ export const PersonalChatRoomPage = () => {
       if (roomId) {
         const { data, error } = await supabaseBrowserClient
           .from("messages")
-          .select("*,user_id(id,user_name)")
+          .select("*,user_id(id,user_name,profile_pic)")
           .eq("room_id", roomId);
 
         if (error) {
@@ -149,9 +149,16 @@ export const PersonalChatRoomPage = () => {
           className="border border-white mx-4 p-4 mt-4 rounded-3xl cursor-pointer"
           onClick={() => handleClick(item.user_id.id)}
         >
-          <h3 className="text-white text-lg font-semibold">
-            {item.user_id?.user_name}
-          </h3>
+          <div className="flex items-center gap-3">
+            <img
+              src={item.user_id?.profile_pic || "/assets/default_image.png"}
+              alt="Profile"
+              className="w-[70px] h-[70px] rounded-full object-cover mr-2 mb-2 border-2"
+            />
+            <h3 className="text-white text-lg font-semibold break-all">
+              {item.user_id?.user_name}
+            </h3>
+          </div>
           {activeUserId === item.user_id.id && (
             <div className="py-2 pl-2 border-2 border-[#3A3A40] bg-black max-h-[800px] rounded-2xl">
               <div className="min-h-[100px] max-h-[500px] overflow-y-auto custom-scrollbar">
@@ -183,7 +190,7 @@ export const PersonalChatRoomPage = () => {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type to Connect 😊..."
-                  className="border-none text-white ml-4"
+                  className="border-none text-white ml-4 h-[30px]"
                 />
 
                 <Button
