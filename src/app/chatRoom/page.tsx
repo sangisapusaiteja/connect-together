@@ -207,10 +207,10 @@ function ChatRoom() {
   }, [userId]);
 
   return (
-    <div className="my-10 ml-10 mr-5 bg-[#131314] flex flex-col w-full rounded-3xl">
+    <div className="lg:my-10 lg:ml-10 lg:mr-5 my-5 ml-5 mr-4  bg-[#131314] flex flex-col lg:w-full rounded-3xl">
       {/* Header */}
-      <div className="sticky top-0 z-20  py-4 border-b-[3px] border-[#3A3A40]">
-        <h1 className="text-3xl font-extrabold  text-white flex items-center justify-between px-6">
+      <div className="sticky top-0 z-20  py-4 border-b-[3px] border-[#3A3A40] bg-[#131314] rounded-t-3xl">
+        <h1 className="lg:text-3xl text-xl font-extrabold  text-white flex items-center justify-between px-6">
           <div className="flex items-center  gap-4">
             <div className="profile-container">
               {error && <p className="error-message">{error}</p>}
@@ -219,31 +219,30 @@ function ChatRoom() {
                   <AvatarImage
                     src={profilePic}
                     alt={`${userId}'s Profile`}
-                    className="rounded-full border-[3px] border-[#3A3A40] h-[100px] w-[100px]"
+                    className="rounded-full border-[3px] border-[#3A3A40] lg:w-[100px] lg:h-[100px] h-[70px] w-[70px]"
                   />
                 ) : (
                   <img
                     src={"/assets/default_image.png"}
                     alt="Profile"
-                    className="w-[100px] h-[100px] rounded-full object-cover mr-2 border-2"
+                    className="lg:w-[100px] lg:h-[100px] h-[70px] w-[70px] rounded-full object-cover mr-2 border-2"
                   />
                 )}
               </Avatar>
             </div>
-            <div className="flex flex-col items-center gap-2">
-              <span>Room Name:</span>
-              <span>
-                <i>"{roomName}"</i>
-              </span>
-            </div>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <span>Room Name:</span>
+            <span>
+              <i>"{roomName}"</i>
+            </span>
           </div>
           <div className="flex items-center space-x-4  gap-1">
             {copyMessage && (
               <span className="text-green-500 text-sm">{copyMessage}</span>
             )}
             <div className="gap-2 flex border-[3px] border-[#3A3A40] rounded-3xl items-center px-4 py-3 bg-black">
-              <span className="text-lg">{roomCode}</span>
-
+              <span className="lg:text-lg text-xs">{roomCode}</span>
               <button
                 onClick={handleCopy}
                 className="text-blue-500 hover:text-blue-700 transition-colors"
@@ -271,7 +270,7 @@ function ChatRoom() {
               return (
                 <li
                   key={index}
-                  className={`flex ${
+                  className={`flex items-center ${
                     isCurrentUser ? "justify-end" : "justify-start"
                   }`}
                 >
@@ -283,7 +282,7 @@ function ChatRoom() {
                           "/assets/default_image.png"
                         }
                         alt="Profile"
-                        className="w-[70px] h-[70px] rounded-full object-cover mr-2 border-2"
+                        className="lg:w-[70px] lg:h-[70px] h-[40px] w-[40px] rounded-full object-cover mr-2 border-2"
                       />
                     )}
                   </div>
@@ -293,10 +292,10 @@ function ChatRoom() {
                     }`}
                   >
                     <span
-                      className={`px-4 py-2 rounded-tl-3xl rounded-tr-3xl ${
+                      className={`lg:px-4 px-2 py-2 rounded-tl-3xl rounded-tr-3xl ${
                         isCurrentUser
-                          ? "rounded-bl-3xl bg-white text-xl font-semibold"
-                          : "rounded-br-3xl bg-[#3A3A40] text-white text-xl font-semibold"
+                          ? "rounded-bl-3xl bg-white lg:text-xl text-sm font-semibold"
+                          : "rounded-br-3xl bg-[#3A3A40] text-white lg:text-xl text-sm font-semibold"
                       } break-all`}
                     >
                       {message.message}
@@ -308,7 +307,7 @@ function ChatRoom() {
                         {new Date(message.sent_at).toLocaleString()}
                       </p>
                     </span>
-                    <span className="font-semibold text-white mt-2 text-sm">
+                    <span className="font-semibold text-white mt-2 lg:text-sm text-[12px] w-[50%] break-all">
                       {message.user_id?.user_name}
                     </span>
                   </div>
@@ -320,7 +319,7 @@ function ChatRoom() {
                           "/assets/default_image.png"
                         }
                         alt="Profile"
-                        className="w-[70px] h-[70px] rounded-full object-cover ml-2 border-2 border-white"
+                        className="lg:w-[70px] lg:h-[70px] h-[40px] w-[40px] rounded-full object-cover ml-2 border-2 border-white"
                       />
                     )}
                   </div>
@@ -362,7 +361,7 @@ export default function AboutPageWrapper() {
 
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <div className="flex bg-black  h-screen  w-full">
+      <div className="flex flex-col lg:flex-row  bg-black  min-h-screen max-h-screen overflow-y-auto custom-scrollbar">
         <ChatRoom />
         {messageLength > 0 && <PersonalChatRoomPage />}
       </div>

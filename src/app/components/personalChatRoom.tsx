@@ -142,11 +142,11 @@ export const PersonalChatRoomPage = () => {
   }, [activeUserId]);
 
   return (
-    <div className="my-10 mr-10 ml-5 bg-[#131314] flex flex-col w-[50%] rounded-3xl">
+    <div className="lg:my-10 lg:mr-10 lg:ml-5 m-4 bg-[#131314] lg:w-[50%] rounded-3xl lg:max-h-screen lg:overflow-y-auto custom-scrollbar">
       {uniqueUsers.map((item) => (
         <div
           key={item.user_id.id}
-          className="border border-white mx-4 p-4 mt-4 rounded-3xl cursor-pointer"
+          className="border border-white mx-4 p-4 my-3 rounded-3xl cursor-pointer"
           onClick={() => handleClick(item.user_id.id)}
         >
           <div className="flex items-center gap-3">
