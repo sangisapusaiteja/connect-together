@@ -206,6 +206,30 @@ function ChatRoom() {
     }
   }, [userId]);
 
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false); // Hide loader after 3 seconds
+    }, 1200); // 3 seconds delay
+
+    return () => clearTimeout(timer); // Cleanup the timer on component unmount
+  }, []);
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center fixed inset-0 z-50 bg-black">
+        <video
+          src="/assets/cT.mp4"
+          className="" // Adjust size as needed
+          autoPlay
+          loop
+          muted
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="lg:my-10 lg:ml-10 lg:mr-5 my-5 ml-5 mr-4  bg-[#131314] flex flex-col lg:w-full rounded-3xl">
       {/* Header */}
