@@ -143,6 +143,9 @@ export const PersonalChatRoomPage = () => {
 
   return (
     <div className="lg:my-10 lg:mr-10 lg:ml-5 m-4 bg-[#131314] lg:w-[50%] rounded-3xl lg:max-h-screen lg:overflow-y-auto custom-scrollbar">
+      <div className="text-white text-2xl font-bold m-4 flex justify-center items-center">
+        Personal Chat
+      </div>
       {uniqueUsers.map((item) => (
         <div
           key={item.user_id.id}
@@ -189,6 +192,17 @@ export const PersonalChatRoomPage = () => {
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleUserDetails(
+                        roomId,
+                        userId,
+                        item.user_id?.id,
+                        newMessage
+                      );
+                      setNewMessage(""); // Clear the input after sending the message
+                    }
+                  }}
                   placeholder="Type to Connect 😊..."
                   className="border-none text-white ml-4 h-[30px]"
                 />

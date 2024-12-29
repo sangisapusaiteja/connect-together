@@ -244,6 +244,11 @@ export default function IndexPage() {
             placeholder="Room Name"
             value={roomName}
             onChange={(e) => setRoomName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isLoadingCreate) {
+                handleCreateRoom();
+              }
+            }}
             className="mb-6 p-4 border-2 border-[#3A3A40] w-full  placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white bg-black"
           />
 
@@ -293,6 +298,11 @@ export default function IndexPage() {
             placeholder="Enter Room Code"
             value={roomCode}
             onChange={(e) => setRoomCode(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isLoadingCreate) {
+                handleEnterRoom();
+              }
+            }}
             className="bg-black mb-6 p-4 border-2 border-[#3A3A40] w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white"
           />
           <Input
@@ -300,6 +310,11 @@ export default function IndexPage() {
             placeholder="Your Name"
             value={personName}
             onChange={(e) => setPersonName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !isLoadingCreate) {
+                handleEnterRoom();
+              }
+            }}
             className="bg-black mb-6 p-4 border-2 border-[#3A3A40] w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white"
           />
           <div className="grid w-full max-w-sm items-center gap-1.5">
@@ -311,6 +326,11 @@ export default function IndexPage() {
               type="file"
               onChange={handleFileChange}
               disabled={uploading}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !isLoadingCreate) {
+                  handleEnterRoom();
+                }
+              }}
               className="bg-black mb-6 border-2 border-[#3A3A40] w-full placeholder-purple-400  rounded-xl shadow-md focus:outline-none focus:ring-2 focus:ring-[#3A3A40] transition-all text-white"
             />
           </div>

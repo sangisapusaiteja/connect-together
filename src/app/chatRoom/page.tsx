@@ -342,6 +342,11 @@ function ChatRoom() {
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleSendMessage();
+            }
+          }}
           placeholder="Type to Connect 😊..."
           className="text-lg text-white border-none rounded-2xl"
         />
