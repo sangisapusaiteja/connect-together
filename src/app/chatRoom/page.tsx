@@ -2,21 +2,21 @@
 
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@*/components/ui/avatar";
+import { Sheet, SheetContent, SheetTitle } from "@*/components/ui/sheet";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { PaperAirplaneIcon } from "@heroicons/react/24/outline";
-import { FiCopy } from "react-icons/fi";
 import { PersonalChatRoomPage } from "@app/components/personalChatRoom";
 import CryptoJS from "crypto-js";
 import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
-import { Avatar, AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
+import { Copy, Check, Send, MessageCircle, ArrowLeft, Users } from "lucide-react";
 
-function ChatRoom() {
+function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const [messages, setMessages] = useState<any[]>([]);
-  const [newMessage, setNewMessage] = useState<string>("");
-  const [copyMessage, setCopyMessage] = useState("");
-  const secretKey = "key"; // Same key used for encryption
+  const [newMessage, setNewMessage] = useState("");
+  const [copyMessage, setCopyMessage] = useState(false);
+  const secretKey = "key";
 
   const searchParams = useSearchParams();
   const encryptedRoomId = searchParams.get("roomId");
@@ -28,14 +28,13 @@ function ChatRoom() {
   const [userId, setUserId] = useState<number | null>(null);
   const [roomName, setRoomName] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState<string | null>(null);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
 
   const setMessageLength = useParamsStore((state) => state.setMessageLength);
 
   useEffect(() => {
     if (encryptedRoomId && encryptedUserId) {
       try {
-        // Decrypt the parameters
         const decryptedRoomIdBytes = CryptoJS.AES.decrypt(
           decodeURIComponent(encryptedRoomId),
           secretKey
@@ -44,12 +43,10 @@ function ChatRoom() {
           decodeURIComponent(encryptedUserId),
           secretKey
         );
-
         const decryptedRoomNameBytes = CryptoJS.AES.decrypt(
           decodeURIComponent(encryptedRoomName ?? ""),
           secretKey
         );
-
         const decryptedRoomCodeBytes = CryptoJS.AES.decrypt(
           decodeURIComponent(encryptedRoomCode ?? ""),
           secretKey
@@ -62,19 +59,11 @@ function ChatRoom() {
           decryptedUserIdBytes.toString(CryptoJS.enc.Utf8),
           10
         );
-
-        const decryptedRoomName = decryptedRoomNameBytes.toString(
-          CryptoJS.enc.Utf8
-        );
-
-        const decryptedRoomCode = decryptedRoomCodeBytes.toString(
-          CryptoJS.enc.Utf8
-        );
-        // Ensure they are valid numbers
+        const decryptedRoomName = decryptedRoomNameBytes.toString(CryptoJS.enc.Utf8);
+        const decryptedRoomCode = decryptedRoomCodeBytes.toString(CryptoJS.enc.Utf8);
         if (isNaN(decryptedRoomId) || isNaN(decryptedUserId)) {
           throw new Error("Decryption resulted in invalid numbers");
         }
-
         setRoomId(decryptedRoomId);
         setUserId(decryptedUserId);
         setRoomName(decryptedRoomName);
@@ -85,20 +74,18 @@ function ChatRoom() {
       }
     }
   }, [encryptedRoomId, encryptedUserId]);
-  // Fetch messages from the room when the component loads
-  useEffect(() => {
-    if (roomId === null) return; // Wait until roomId is resolved
 
+  useEffect(() => {
+    if (roomId === null) return;
     const fetchMessages = async () => {
       try {
         const { data, error } = await supabaseBrowserClient
           .from("messages")
           .select(
-            "message, sent_at, user_id(id, user_name,profile_pic), room_id(id, room_name, room_code)"
+            "message, sent_at, user_id(id, user_name, profile_pic), room_id(id, room_name, room_code)"
           )
           .eq("room_id", roomId)
           .order("sent_at", { ascending: true });
-
         if (error) {
           console.error("Error fetching messages:", error);
           setError(error.message);
@@ -111,69 +98,49 @@ function ChatRoom() {
         setError("Something went wrong");
       }
     };
-
     fetchMessages();
-
-    // Real-time subscription to listen for new messages
     const messageSubscription = supabaseBrowserClient
-      .channel(`room:${roomId}`) // Create a channel for the room
+      .channel(`room:${roomId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "messages" },
-        (payload) => {
-          fetchMessages();
-        }
+        () => { fetchMessages(); }
       )
       .subscribe();
-
-    // Cleanup subscription when roomId changes or component unmounts
     return () => {
       supabaseBrowserClient.removeChannel(messageSubscription);
     };
   }, [roomId]);
 
-  // Send a new message to the room
   const handleSendMessage = async () => {
-    if (!roomId || !newMessage || !userId) return;
-
-    // Insert the message into the messages table
+    if (!roomId || !newMessage.trim() || !userId) return;
     const { error } = await supabaseBrowserClient
       .from("messages")
       .insert([{ room_id: roomId, user_id: userId, message: newMessage }]);
-
     if (error) {
       setError("Failed to send message.");
     } else {
-      setNewMessage(""); // Clear the input field
+      setNewMessage("");
     }
   };
 
-  // Inside your component
   const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
   useEffect(() => {
-    // Scroll to the bottom without smooth scroll
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "auto" }); // Instantly scroll to the bottom
+      messagesEndRef.current.scrollIntoView({ behavior: "auto" });
     }
   }, [messages]);
 
   const handleCopy = () => {
-    const roomCode = messages?.[0]?.room_id?.room_code;
     if (roomCode) {
-      navigator.clipboard
-        .writeText(roomCode)
-        .then(() => {
-          setCopyMessage("Copied!");
-          setTimeout(() => {
-            setCopyMessage(""); // Clear the message after 2 seconds
-          }, 2000);
-        })
-        .catch((err) => {
-          console.error("Failed to copy: ", err);
-        });
+      navigator.clipboard.writeText(roomCode).then(() => {
+        setCopyMessage(true);
+        setTimeout(() => setCopyMessage(false), 2000);
+      });
     }
   };
+
   const [profilePic, setProfilePic] = useState(null);
 
   useEffect(() => {
@@ -184,215 +151,271 @@ function ChatRoom() {
           .select("profile_pic")
           .eq("id", userId)
           .single();
-
         if (error) {
           console.log("Error fetching profile picture:", error);
-
-          setError("Failed to fetch profile picture.");
           return;
         }
-
-        if (data) {
-          setProfilePic(data.profile_pic);
-        }
+        if (data) setProfilePic(data.profile_pic);
       } catch (err) {
         console.error("Error fetching profile picture:", err);
-        setError("An error occurred while fetching the profile picture.");
       }
     };
-
-    if (userId) {
-      fetchProfilePic();
-    }
+    if (userId) fetchProfilePic();
   }, [userId]);
 
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false); // Hide loader after 3 seconds
-    }, 1200); // 3 seconds delay
-
-    return () => clearTimeout(timer); // Cleanup the timer on component unmount
+    const timer = setTimeout(() => setIsLoading(false), 1200);
+    return () => clearTimeout(timer);
   }, []);
+
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const formatTime = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === today.toDateString()) return "Today";
+    if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+    return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  };
+
+  const shouldShowDate = (index: number) => {
+    if (index === 0) return true;
+    const curr = new Date(messages[index].sent_at).toDateString();
+    const prev = new Date(messages[index - 1].sent_at).toDateString();
+    return curr !== prev;
+  };
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center fixed inset-0 z-50 bg-black">
-        <video
-          src="/assets/cT.mp4"
-          className="" // Adjust size as needed
-          autoPlay
-          loop
-          muted
-        />
+      <div className="flex flex-col justify-center items-center fixed inset-0 z-50 bg-background">
+        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-4 animate-pulse">
+          <MessageCircle className="h-6 w-6 text-white" />
+        </div>
+        <p className="text-sm text-muted-foreground animate-pulse">Loading your chat...</p>
       </div>
     );
   }
 
   return (
-    <div className="lg:my-10 lg:ml-10 lg:mr-5 my-5 ml-5 mr-4  bg-[#131314] flex flex-col lg:w-full rounded-3xl">
-      {/* Header */}
-      <div className="sticky top-0 z-20  py-4 border-b-[3px] border-[#3A3A40] bg-[#131314] rounded-t-3xl">
-        <h1 className="lg:text-3xl text-xl font-extrabold  text-white flex items-center justify-between px-6">
-          <div className="flex items-center  gap-4">
-            <div className="profile-container">
-              {error && <p className="error-message">{error}</p>}
-              <Avatar>
-                {profilePic ? (
-                  <AvatarImage
-                    src={profilePic}
-                    alt={`${userId}'s Profile`}
-                    className="rounded-full border-[3px] border-[#3A3A40] lg:w-[100px] lg:h-[100px] h-[70px] w-[70px]"
-                  />
-                ) : (
-                  <img
-                    src={"/assets/default_image.png"}
-                    alt="Profile"
-                    className="lg:w-[100px] lg:h-[100px] h-[70px] w-[70px] rounded-full object-cover mr-2 border-2"
-                  />
-                )}
-              </Avatar>
+    <div className="flex-1 flex flex-col min-h-0 bg-background">
+      {/* Chat Header */}
+      <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <a href="/" className="lg:hidden shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
+              <ArrowLeft className="h-5 w-5 text-muted-foreground" />
+            </a>
+            <Avatar className="h-10 w-10 shrink-0 border-2 border-purple-500/30">
+              {profilePic ? (
+                <AvatarImage src={profilePic} alt="Profile" className="object-cover" />
+              ) : (
+                <AvatarFallback className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-xs font-semibold text-purple-300">
+                  You
+                </AvatarFallback>
+              )}
+            </Avatar>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-foreground truncate">{roomName}</h2>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                Active now
+              </p>
             </div>
           </div>
-          <div className="flex flex-col items-center gap-2">
-            <span>Room Name:</span>
-            <span>
-              <i>"{roomName}"</i>
-            </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onToggleSidebar}
+              className="lg:hidden p-2 rounded-lg hover:bg-secondary/50 transition-colors"
+            >
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </button>
+            <button
+              onClick={handleCopy}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <span className="font-mono tracking-wider hidden sm:inline">{roomCode}</span>
+              <span className="font-mono tracking-wider sm:hidden">{roomCode?.slice(0, 4)}...</span>
+              {copyMessage ? (
+                <Check className="h-3.5 w-3.5 text-emerald-400" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+            </button>
           </div>
-          <div className="flex items-center space-x-4  gap-1">
-            {copyMessage && (
-              <span className="text-green-500 text-sm">{copyMessage}</span>
-            )}
-            <div className="gap-2 flex border-[3px] border-[#3A3A40] rounded-3xl items-center px-4 py-3 bg-black">
-              <span className="lg:text-lg text-xs">{roomCode}</span>
-              <button
-                onClick={handleCopy}
-                className="text-blue-500 hover:text-blue-700 transition-colors"
-              >
-                <FiCopy className="h-5 w-5 text-[#3A3A40] hover:text-white duration-300" />
-              </button>
-            </div>
-          </div>
-        </h1>
-      </div>
+        </div>
+      </header>
 
-      {/* Displaying error if any */}
+      {/* Error */}
       {error && (
-        <p className="text-red-500 mb-6 text-center font-semibold text-lg">
-          {error}
-        </p>
+        <div className="mx-4 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+          <p className="text-xs text-red-400 text-center">{error}</p>
+        </div>
       )}
 
-      {/* Displaying messages */}
-      <div className="overflow-y-auto flex-1 py-10 px-6 custom-scrollbar">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-5 py-4">
         {messages.length > 0 ? (
-          <ul className="space-y-5">
+          <div className="max-w-3xl mx-auto space-y-1">
             {messages.map((message, index) => {
               const isCurrentUser = message.user_id?.id === userId;
+              const showDate = shouldShowDate(index);
+              const showAvatar =
+                !isCurrentUser &&
+                (index === messages.length - 1 ||
+                  messages[index + 1]?.user_id?.id !== message.user_id?.id);
+              const showName =
+                !isCurrentUser &&
+                (index === 0 || messages[index - 1]?.user_id?.id !== message.user_id?.id);
+
               return (
-                <li
-                  key={index}
-                  className={`flex items-center ${
-                    isCurrentUser ? "justify-end" : "justify-start"
-                  }`}
-                >
-                  <div>
-                    {!isCurrentUser && (
-                      <img
-                        src={
-                          message.user_id?.profile_pic ||
-                          "/assets/default_image.png"
-                        }
-                        alt="Profile"
-                        className="lg:w-[70px] lg:h-[70px] h-[40px] w-[40px] rounded-full object-cover mr-2 border-2"
-                      />
-                    )}
-                  </div>
+                <div key={index}>
+                  {showDate && (
+                    <div className="flex justify-center py-3">
+                      <span className="text-[10px] font-medium text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full">
+                        {formatDate(message.sent_at)}
+                      </span>
+                    </div>
+                  )}
                   <div
-                    className={`flex flex-col max-w-lg ${
-                      isCurrentUser ? "items-end" : "items-start"
-                    }`}
+                    className={`flex items-end gap-2 animate-message-in ${
+                      isCurrentUser ? "justify-end" : "justify-start"
+                    } ${showName && !isCurrentUser ? "mt-3" : "mt-0.5"}`}
                   >
-                    <span
-                      className={`lg:px-4 px-2 py-2 rounded-tl-3xl rounded-tr-3xl ${
-                        isCurrentUser
-                          ? "rounded-bl-3xl bg-white lg:text-xl text-sm font-semibold"
-                          : "rounded-br-3xl bg-[#3A3A40] text-white lg:text-xl text-sm font-semibold"
-                      } break-all`}
+                    {!isCurrentUser && (
+                      <div className="w-7 shrink-0">
+                        {showAvatar && (
+                          <Avatar className="h-7 w-7 border border-border/50">
+                            <AvatarImage
+                              src={message.user_id?.profile_pic}
+                              alt={message.user_id?.user_name}
+                              className="object-cover"
+                            />
+                            <AvatarFallback className="text-[10px] bg-secondary">
+                              {getInitials(message.user_id?.user_name || "?")}
+                            </AvatarFallback>
+                          </Avatar>
+                        )}
+                      </div>
+                    )}
+                    <div
+                      className={`flex flex-col max-w-[75%] sm:max-w-[65%] ${
+                        isCurrentUser ? "items-end" : "items-start"
+                      }`}
                     >
-                      {message.message}
-                      <p
-                        className={`text-xs  mt-1 ${
-                          isCurrentUser ? "text-right" : "text-left text-white"
+                      {showName && !isCurrentUser && (
+                        <span className="text-[11px] font-medium text-muted-foreground mb-0.5 ml-3">
+                          {message.user_id?.user_name}
+                        </span>
+                      )}
+                      <div
+                        className={`group relative px-3 py-2 rounded-2xl text-sm break-words ${
+                          isCurrentUser
+                            ? "bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-br-md"
+                            : "bg-secondary/70 text-foreground rounded-bl-md"
                         }`}
                       >
-                        {new Date(message.sent_at).toLocaleString()}
-                      </p>
-                    </span>
-                    <span className="font-semibold text-white mt-2 lg:text-sm text-[12px] w-[50%] break-all">
-                      {message.user_id?.user_name}
-                    </span>
+                        <p className="leading-relaxed">{message.message}</p>
+                        <p
+                          className={`text-[10px] mt-1 ${
+                            isCurrentUser ? "text-white/60" : "text-muted-foreground"
+                          }`}
+                        >
+                          {formatTime(message.sent_at)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    {isCurrentUser && (
-                      <img
-                        src={
-                          message.user_id?.profile_pic ||
-                          "/assets/default_image.png"
-                        }
-                        alt="Profile"
-                        className="lg:w-[70px] lg:h-[70px] h-[40px] w-[40px] rounded-full object-cover ml-2 border-2 border-white"
-                      />
-                    )}
-                  </div>
-                </li>
+                </div>
               );
             })}
-          </ul>
+            <div ref={messagesEndRef} />
+          </div>
         ) : (
-          <p className="text-white text-center mt-10 font-medium">
-            No messages in this room yet.
-          </p>
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="h-16 w-16 rounded-2xl bg-secondary/50 flex items-center justify-center mb-4">
+              <MessageCircle className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <p className="text-sm font-medium text-foreground mb-1">No messages yet</p>
+            <p className="text-xs text-muted-foreground">Be the first to say something!</p>
+          </div>
         )}
-        {/* Scroll reference at the end of messages */}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* Form to send new message */}
-      <div className="flex items-center border border-none rounded-3xl m-5 h-10 px-3 bg-black">
-        <Input
-          type="text"
-          value={newMessage}
-          onChange={(e) => setNewMessage(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              handleSendMessage();
-            }
-          }}
-          placeholder="Type to Connect 😊..."
-          className="text-lg text-white border-none rounded-2xl"
-        />
-
-        <PaperAirplaneIcon
-          onClick={handleSendMessage}
-          className="h-8 w-8 text-white mr-3 hover:text-green-500 duration-300"
-        />
-        {/* Send Icon */}
+      {/* Message Input */}
+      <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl p-3 sm:p-4">
+        <div className="max-w-3xl mx-auto flex items-center gap-2">
+          <Input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleSendMessage(); }}
+            placeholder="Type a message..."
+            className="flex-1 bg-secondary/50 border-border/50 h-11 rounded-xl text-sm placeholder:text-muted-foreground focus-visible:ring-purple-500/50"
+          />
+          <Button
+            onClick={handleSendMessage}
+            disabled={!newMessage.trim()}
+            size="icon"
+            className="h-11 w-11 shrink-0 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg shadow-purple-500/20 disabled:opacity-30 disabled:shadow-none transition-all"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </div>
   );
 }
+
 export default function AboutPageWrapper() {
-  // Redirect if roomId or userId is missing
   const messageLength = useParamsStore((state) => state.messageLength);
+  const [showSidebar, setShowSidebar] = useState(false);
 
   return (
-    <Suspense fallback={<div>Loading...</div>}>
-      <div className="flex flex-col lg:flex-row  bg-black  min-h-screen max-h-screen overflow-y-auto custom-scrollbar">
-        <ChatRoom />
-        {messageLength > 0 && <PersonalChatRoomPage />}
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-screen bg-background">
+          <div className="h-8 w-8 border-2 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+        </div>
+      }
+    >
+      <div className="flex h-screen bg-background overflow-hidden">
+        {/* Main chat area */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <ChatRoom onToggleSidebar={() => setShowSidebar(true)} />
+        </div>
+
+        {/* Desktop sidebar - always visible on lg+ */}
+        {messageLength > 0 && (
+          <div className="hidden lg:block w-[380px] border-l border-border/50">
+            <PersonalChatRoomPage />
+          </div>
+        )}
+
+        {/* Mobile sidebar - Sheet slide-over */}
+        {messageLength > 0 && (
+          <Sheet open={showSidebar} onOpenChange={setShowSidebar}>
+            <SheetContent side="right" className="w-[85vw] sm:w-[380px] p-0">
+              <SheetTitle className="sr-only">Direct Messages</SheetTitle>
+              <PersonalChatRoomPage />
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
     </Suspense>
   );
