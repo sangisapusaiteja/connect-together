@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@*/co
 import { Separator } from "@*/components/ui/separator";
 import { Badge } from "@*/components/ui/badge";
 import { Label } from "@radix-ui/react-label";
-import { Copy, Check, Plus, LogIn, Upload, MessageCircle, Users, Zap } from "lucide-react";
+import { Copy, Check, Plus, LogIn, Upload, MessageCircle, Users, Zap, X } from "lucide-react";
 import CryptoJS from "crypto-js";
 
 export default function IndexPage() {
@@ -24,6 +24,7 @@ export default function IndexPage() {
   const [copyMessage, setCopyMessage] = useState(false);
   const secretKey = "key";
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState<"create" | "join">("join");
 
@@ -154,7 +155,16 @@ export default function IndexPage() {
 
   const handleFileChange = (event: any) => {
     const selectedFile = event.target.files[0];
-    if (selectedFile) setFile(selectedFile);
+    if (selectedFile) {
+      setFile(selectedFile);
+      setPreviewUrl(URL.createObjectURL(selectedFile));
+    }
+  };
+
+  const clearPreview = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(null);
+    setFile(null);
   };
 
   return (
@@ -258,14 +268,34 @@ export default function IndexPage() {
                     Profile Picture
                     <span className="text-xs">(optional)</span>
                   </Label>
-                  <Input
-                    id="picture"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    disabled={uploading}
-                    className="bg-background/50 border-border/50 h-11 text-sm file:text-muted-foreground file:text-xs file:mr-3 cursor-pointer"
-                  />
+                  <div className="flex items-center gap-3">
+                    {previewUrl ? (
+                      <div className="relative shrink-0">
+                        <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-purple-500/30">
+                          <img
+                            src={previewUrl}
+                            alt="Preview"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={clearPreview}
+                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 transition-colors"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : null}
+                    <Input
+                      id="picture"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      disabled={uploading}
+                      className="bg-background/50 border-border/50 h-11 text-sm file:text-muted-foreground file:text-xs file:mr-3 cursor-pointer"
+                    />
+                  </div>
                   {file && (
                     <p className="text-xs text-emerald-400 flex items-center gap-1">
                       <Check className="h-3 w-3" />

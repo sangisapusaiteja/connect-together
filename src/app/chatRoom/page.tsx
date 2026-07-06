@@ -10,12 +10,41 @@ import { PersonalChatRoomPage } from "@app/components/personalChatRoom";
 import CryptoJS from "crypto-js";
 import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
-import { Copy, Check, Send, MessageCircle, ArrowLeft, Users } from "lucide-react";
+import {
+  Copy, Check, Send, MessageCircle, ArrowLeft, Users,
+  ChevronDown, Smile, Paperclip, X, Loader2, History
+} from "lucide-react";
+
+const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
+  {
+    label: "Smileys",
+    emojis: ["😀", "😂", "🤣", "😊", "😍", "🥰", "😎", "🤩", "😢", "😭", "😤", "😴", "🤗", "😇", "🙃", "😏", "😌", "😔"],
+  },
+  {
+    label: "Gestures",
+    emojis: ["👍", "👎", "👏", "🙌", "🤝", "✌️", "🤞", "👊", "✊", "💪", "🫶", "🙏", "🤲", "👋", "🖖", "🤙"],
+  },
+  {
+    label: "Objects",
+    emojis: ["❤️", "💔", "🔥", "⭐", "✨", "💯", "🎉", "🎊", "💡", "🎯", "🧠", "👀", "💀", "🎁", "🏆", "🚀", "💎", "🔮"],
+  },
+  {
+    label: "Symbols",
+    emojis: ["✅", "❌", "💚", "💙", "💜", "🖤", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚪", "🟤", "♻️", "🛑"],
+  },
+];
+
+function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <div className={`animate-pulse rounded-md bg-secondary/50 ${className ?? ""}`} style={style} />
+  );
+}
 
 function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState(false);
+  const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
   const secretKey = "key";
 
   const searchParams = useSearchParams();
@@ -32,32 +61,47 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   const setMessageLength = useParamsStore((state) => state.setMessageLength);
 
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [emojiTab, setEmojiTab] = useState(0);
+  const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [reactions, setReactions] = useState<Record<number, string[]>>({});
+  const [fileAttachments, setFileAttachments] = useState<File[]>([]);
+  const [fileUploading, setFileUploading] = useState(false);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+
+  const messagesEndRef = useRef<null | HTMLDivElement>(null);
+  const messagesContainerRef = useRef<null | HTMLDivElement>(null);
+  const emojiPickerRef = useRef<null | HTMLDivElement>(null);
+  const fileInputRef = useRef<null | HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("recentEmojis");
+      if (stored) setRecentEmojis(JSON.parse(stored));
+    } catch {}
+  }, []);
+
   useEffect(() => {
     if (encryptedRoomId && encryptedUserId) {
       try {
         const decryptedRoomIdBytes = CryptoJS.AES.decrypt(
-          decodeURIComponent(encryptedRoomId),
-          secretKey
+          decodeURIComponent(encryptedRoomId), secretKey
         );
         const decryptedUserIdBytes = CryptoJS.AES.decrypt(
-          decodeURIComponent(encryptedUserId),
-          secretKey
+          decodeURIComponent(encryptedUserId), secretKey
         );
         const decryptedRoomNameBytes = CryptoJS.AES.decrypt(
-          decodeURIComponent(encryptedRoomName ?? ""),
-          secretKey
+          decodeURIComponent(encryptedRoomName ?? ""), secretKey
         );
         const decryptedRoomCodeBytes = CryptoJS.AES.decrypt(
-          decodeURIComponent(encryptedRoomCode ?? ""),
-          secretKey
+          decodeURIComponent(encryptedRoomCode ?? ""), secretKey
         );
         const decryptedRoomId = parseInt(
-          decryptedRoomIdBytes.toString(CryptoJS.enc.Utf8),
-          10
+          decryptedRoomIdBytes.toString(CryptoJS.enc.Utf8), 10
         );
         const decryptedUserId = parseInt(
-          decryptedUserIdBytes.toString(CryptoJS.enc.Utf8),
-          10
+          decryptedUserIdBytes.toString(CryptoJS.enc.Utf8), 10
         );
         const decryptedRoomName = decryptedRoomNameBytes.toString(CryptoJS.enc.Utf8);
         const decryptedRoomCode = decryptedRoomCodeBytes.toString(CryptoJS.enc.Utf8);
@@ -82,7 +126,7 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
         const { data, error } = await supabaseBrowserClient
           .from("messages")
           .select(
-            "message, sent_at, user_id(id, user_name, profile_pic), room_id(id, room_name, room_code)"
+            "id, message, sent_at, user_id(id, user_name, profile_pic), room_id(id, room_name, room_code)"
           )
           .eq("room_id", roomId)
           .order("sent_at", { ascending: true });
@@ -90,8 +134,9 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
           console.error("Error fetching messages:", error);
           setError(error.message);
         } else {
+          const filteredData = data.filter((m: any) => !optimisticIds.has(`opt-${m.id}`));
           setMessageLength(data.length);
-          setMessages(data);
+          setMessages(filteredData);
         }
       } catch (err) {
         console.error("Error fetching messages:", err);
@@ -114,23 +159,94 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   const handleSendMessage = async () => {
     if (!roomId || !newMessage.trim() || !userId) return;
+    const tempId = `opt-${Date.now()}`;
+    const text = newMessage;
+    setNewMessage("");
+    setShowEmojiPicker(false);
+    setOptimisticIds((prev) => new Set(prev).add(tempId));
+
+    const optimisticMsg = {
+      id: tempId,
+      _optimistic: true,
+      message: text,
+      sent_at: new Date().toISOString(),
+      user_id: { id: userId, user_name: "You", profile_pic: profilePic },
+      room_id: { id: roomId, room_name: roomName, room_code: roomCode },
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
     const { error } = await supabaseBrowserClient
       .from("messages")
-      .insert([{ room_id: roomId, user_id: userId, message: newMessage }]);
+      .insert([{ room_id: roomId, user_id: userId, message: text }]);
     if (error) {
       setError("Failed to send message.");
-    } else {
-      setNewMessage("");
+      setMessages((prev) => prev.filter((m: any) => m.id !== tempId));
     }
+    setOptimisticIds((prev) => {
+      const next = new Set(prev);
+      next.delete(tempId);
+      return next;
+    });
   };
 
-  const messagesEndRef = useRef<null | HTMLDivElement>(null);
+  const handleEmojiSelect = (emoji: string) => {
+    setNewMessage((prev) => prev + emoji);
+    setRecentEmojis((prev) => {
+      const next = [emoji, ...prev.filter((e) => e !== emoji)].slice(0, 12);
+      try { localStorage.setItem("recentEmojis", JSON.stringify(next)); } catch {}
+      return next;
+    });
+    setShowEmojiPicker(false);
+  };
+
+  const handleReaction = (msgId: number, emoji: string) => {
+    setReactions((prev) => {
+      const existing = prev[msgId] || [];
+      if (existing.includes(emoji)) {
+        return { ...prev, [msgId]: existing.filter((e) => e !== emoji) };
+      }
+      return { ...prev, [msgId]: [...existing, emoji] };
+    });
+  };
+
+  const handleFileAttach = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setFileAttachments((prev) => [...prev, ...files]);
+    const newPreviews = files.map((f) => URL.createObjectURL(f));
+    setImagePreviews((prev) => [...prev, ...newPreviews]);
+  };
+
+  const removeAttachment = (index: number) => {
+    URL.revokeObjectURL(imagePreviews[index]);
+    setFileAttachments((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
 
   useEffect(() => {
-    if (messagesEndRef.current) {
+    if (messagesEndRef.current && !showScrollBtn) {
       messagesEndRef.current.scrollIntoView({ behavior: "auto" });
     }
   }, [messages]);
+
+  const handleScroll = () => {
+    if (!messagesContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+    setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 200);
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target as Node)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleCopy = () => {
     if (roomCode) {
@@ -203,11 +319,33 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col justify-center items-center fixed inset-0 z-50 bg-background">
-        <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center mb-4 animate-pulse">
-          <MessageCircle className="h-6 w-6 text-white" />
+      <div className="flex-1 flex flex-col bg-background">
+        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-10 w-10 rounded-full" />
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-20" />
+            </div>
+          </div>
+        </header>
+        <div className="flex-1 p-4 space-y-4 overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className={`flex items-end gap-2 ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
+              {i % 2 !== 0 && <Skeleton className="h-7 w-7 rounded-full shrink-0" />}
+              <div className="space-y-2">
+                <Skeleton
+                  className={`h-8 rounded-2xl ${i % 2 === 0 ? "rounded-br-md" : "rounded-bl-md"}`}
+                  style={{ width: `${60 + Math.random() * 120}px` }}
+                />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            </div>
+          ))}
         </div>
-        <p className="text-sm text-muted-foreground animate-pulse">Loading your chat...</p>
+        <div className="shrink-0 border-t border-border/50 bg-card/50 p-4">
+          <Skeleton className="h-11 w-full rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -269,12 +407,18 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
       )}
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-5 py-4">
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-5 py-4 relative"
+      >
         {messages.length > 0 ? (
           <div className="max-w-3xl mx-auto space-y-1">
-            {messages.map((message, index) => {
+            {messages.map((message: any, index) => {
+              const msgId = message.id;
               const isCurrentUser = message.user_id?.id === userId;
               const showDate = shouldShowDate(index);
+              const isOptimistic = message._optimistic;
               const showAvatar =
                 !isCurrentUser &&
                 (index === messages.length - 1 ||
@@ -283,8 +427,10 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                 !isCurrentUser &&
                 (index === 0 || messages[index - 1]?.user_id?.id !== message.user_id?.id);
 
+              const messageReactions = reactions[msgId] || [];
+
               return (
-                <div key={index}>
+                <div key={msgId}>
                   {showDate && (
                     <div className="flex justify-center py-3">
                       <span className="text-[10px] font-medium text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full">
@@ -323,21 +469,52 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                           {message.user_id?.user_name}
                         </span>
                       )}
-                      <div
-                        className={`group relative px-3 py-2 rounded-2xl text-sm break-words ${
-                          isCurrentUser
-                            ? "bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-br-md"
-                            : "bg-secondary/70 text-foreground rounded-bl-md"
-                        }`}
-                      >
-                        <p className="leading-relaxed">{message.message}</p>
-                        <p
-                          className={`text-[10px] mt-1 ${
-                            isCurrentUser ? "text-white/60" : "text-muted-foreground"
-                          }`}
+                      <div className="group relative">
+                        <div
+                          className={`px-3 py-2 rounded-2xl text-sm break-words ${
+                            isCurrentUser
+                              ? "bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-br-md"
+                              : "bg-secondary/70 text-foreground rounded-bl-md"
+                          } ${isOptimistic ? "opacity-70" : ""}`}
                         >
-                          {formatTime(message.sent_at)}
-                        </p>
+                          <p className="leading-relaxed">{message.message}</p>
+                          <p
+                            className={`text-[10px] mt-1 ${
+                              isCurrentUser ? "text-white/60" : "text-muted-foreground"
+                            }`}
+                          >
+                            {formatTime(message.sent_at)}
+                            {isOptimistic && " · sending..."}
+                          </p>
+                        </div>
+                        {/* Message reactions */}
+                        {messageReactions.length > 0 && (
+                          <div className={`flex gap-0.5 mt-0.5 ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                            {messageReactions.map((emoji: string, i: number) => (
+                              <button
+                                key={i}
+                                onClick={() => handleReaction(msgId, emoji)}
+                                className="text-xs bg-secondary/50 hover:bg-secondary rounded-full px-1.5 py-0.5 transition-colors"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {/* Reaction buttons on hover */}
+                        {!isOptimistic && (
+                          <div className={`absolute -bottom-4 hidden group-hover:flex gap-0.5 bg-card border border-border/50 rounded-full px-1.5 py-0.5 shadow-lg z-10 ${isCurrentUser ? "right-0" : "left-0"}`}>
+                            {EMOJI_CATEGORIES[1].emojis.slice(0, 4).map((emoji) => (
+                              <button
+                                key={emoji}
+                                onClick={() => handleReaction(msgId, emoji)}
+                                className="text-xs hover:scale-125 transition-transform p-0.5"
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -355,27 +532,155 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             <p className="text-xs text-muted-foreground">Be the first to say something!</p>
           </div>
         )}
+
+        {/* Scroll to bottom FAB */}
+        {showScrollBtn && (
+          <div className="sticky bottom-4 flex justify-center">
+            <button
+              onClick={scrollToBottom}
+              className="h-9 w-9 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/30 flex items-center justify-center hover:from-purple-500 hover:to-blue-500 transition-all animate-fade-in"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Message Input */}
       <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl p-3 sm:p-4">
-        <div className="max-w-3xl mx-auto flex items-center gap-2">
-          <Input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") handleSendMessage(); }}
-            placeholder="Type a message..."
-            className="flex-1 bg-secondary/50 border-border/50 h-11 rounded-xl text-sm placeholder:text-muted-foreground focus-visible:ring-purple-500/50"
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!newMessage.trim()}
-            size="icon"
-            className="h-11 w-11 shrink-0 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg shadow-purple-500/20 disabled:opacity-30 disabled:shadow-none transition-all"
-          >
-            <Send className="h-4 w-4" />
-          </Button>
+        <div className="max-w-3xl mx-auto">
+          {/* File attachments preview */}
+          {imagePreviews.length > 0 && (
+            <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
+              {imagePreviews.map((url, i) => (
+                <div key={i} className="relative shrink-0">
+                  <div className="h-16 w-16 rounded-lg overflow-hidden border border-border/50">
+                    <img src={url} alt="attachment" className="h-full w-full object-cover" />
+                  </div>
+                  <button
+                    onClick={() => removeAttachment(i)}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            {/* File attach button */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileAttach}
+              className="hidden"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="shrink-0 h-11 w-11 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
+            {/* Emoji button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                className={`shrink-0 h-11 w-11 rounded-xl transition-all flex items-center justify-center ${
+                  showEmojiPicker
+                    ? "bg-purple-500/15 text-purple-400 border border-purple-500/30"
+                    : "bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Smile className="h-4 w-4" />
+              </button>
+              {showEmojiPicker && (
+                <div
+                  ref={emojiPickerRef}
+                  className="absolute bottom-full mb-2 left-0 w-[300px] sm:w-[320px] bg-card border border-border/50 rounded-xl shadow-2xl shadow-black/30 animate-fade-in z-20 overflow-hidden"
+                >
+                  {/* Recent emojis */}
+                  {recentEmojis.length > 0 && (
+                    <div className="px-3 pt-3 pb-2 border-b border-border/30">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <History className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Recent</span>
+                      </div>
+                      <div className="flex gap-1 flex-wrap">
+                        {recentEmojis.slice(0, 8).map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => handleEmojiSelect(emoji)}
+                            className="h-7 w-7 flex items-center justify-center hover:bg-secondary rounded-md text-base transition-all hover:scale-110"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tabs */}
+                  <div className="flex gap-1 px-3 pt-2.5 pb-1.5 border-b border-border/30">
+                    {EMOJI_CATEGORIES.map((cat, i) => (
+                      <button
+                        key={cat.label}
+                        onClick={() => setEmojiTab(i)}
+                        className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-all ${
+                          emojiTab === i
+                            ? "bg-purple-500/15 text-purple-400"
+                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Emoji grid */}
+                  <div className="p-2.5 max-h-[200px] overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-6 gap-0.5">
+                      {EMOJI_CATEGORIES[emojiTab].emojis.map((emoji) => (
+                        <button
+                          key={emoji}
+                          onClick={() => handleEmojiSelect(emoji)}
+                          className="h-9 w-9 flex items-center justify-center hover:bg-secondary/80 rounded-lg text-xl transition-all hover:scale-110 active:scale-95"
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <Input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  handleSendMessage();
+                }
+              }}
+              placeholder="Type a message..."
+              className="flex-1 bg-secondary/50 border-border/50 h-11 rounded-xl text-sm placeholder:text-muted-foreground focus-visible:ring-purple-500/50"
+            />
+            <Button
+              onClick={handleSendMessage}
+              disabled={!newMessage.trim()}
+              size="icon"
+              className="h-11 w-11 shrink-0 rounded-xl bg-gradient-to-br from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white shadow-lg shadow-purple-500/20 disabled:opacity-30 disabled:shadow-none transition-all"
+            >
+              {fileUploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
@@ -395,19 +700,16 @@ export default function AboutPageWrapper() {
       }
     >
       <div className="flex h-screen bg-background overflow-hidden">
-        {/* Main chat area */}
         <div className="flex-1 flex flex-col min-w-0">
           <ChatRoom onToggleSidebar={() => setShowSidebar(true)} />
         </div>
 
-        {/* Desktop sidebar - always visible on lg+ */}
         {messageLength > 0 && (
           <div className="hidden lg:block w-[380px] border-l border-border/50">
             <PersonalChatRoomPage />
           </div>
         )}
 
-        {/* Mobile sidebar - Sheet slide-over */}
         {messageLength > 0 && (
           <Sheet open={showSidebar} onOpenChange={setShowSidebar}>
             <SheetContent side="right" className="w-[85vw] sm:w-[380px] p-0">
