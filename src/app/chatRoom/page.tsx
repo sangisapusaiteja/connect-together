@@ -5,13 +5,14 @@ import { Input } from "@*/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@*/components/ui/avatar";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useTheme } from "next-themes";
 import { FloatingDmPanel } from "@app/components/personalChatRoom";
 import CryptoJS from "crypto-js";
 import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
 import {
   Copy, Check, Send, MessageCircle, ArrowLeft,
-  ChevronDown, Smile, Paperclip, X, Loader2, History
+  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon
 } from "lucide-react";
 
 const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
@@ -61,6 +62,7 @@ function ChatRoom() {
   const [error, setError] = useState("");
 
   const setMessageLength = useParamsStore((state) => state.setMessageLength);
+  const { theme, setTheme } = useTheme();
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiTab, setEmojiTab] = useState(0);
@@ -387,63 +389,73 @@ function ChatRoom() {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-background">
-      {/* Chat Header */}
-      <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 min-w-0">
-            <a href="/" className="lg:hidden shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
-              <ArrowLeft className="h-5 w-5 text-muted-foreground" />
-            </a>
-            <Avatar className="h-10 w-10 shrink-0 border-2 border-purple-500/30">
-              {profilePic ? (
-                <AvatarImage src={profilePic} alt="Profile" className="object-cover" />
-              ) : (
-                <AvatarFallback className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-xs font-semibold text-purple-300">
-                  You
-                </AvatarFallback>
-              )}
-            </Avatar>
-            <div className="min-w-0">
-              <h2 className="text-sm font-semibold text-foreground truncate">{roomName}</h2>
-              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
-                Active now
-              </p>
+    <div className="flex-1 flex flex-row min-h-0 bg-background">
+      {/* Left: Chat */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Chat Header */}
+        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 min-w-0">
+              <a href="/" className="lg:hidden shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
+                <ArrowLeft className="h-5 w-5 text-muted-foreground" />
+              </a>
+              <Avatar className="h-10 w-10 shrink-0 border-2 border-purple-500/30">
+                {profilePic ? (
+                  <AvatarImage src={profilePic} alt="Profile" className="object-cover" />
+                ) : (
+                  <AvatarFallback className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-xs font-semibold text-purple-300">
+                    You
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-foreground truncate">{roomName}</h2>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                  Active now
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                className="h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
+                title="Toggle theme"
+              >
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </button>
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                <span className="font-mono tracking-wider hidden sm:inline">{roomCode}</span>
+                <span className="font-mono tracking-wider sm:hidden">{roomCode?.slice(0, 4)}...</span>
+                {copyMessage ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-400" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
+              </button>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={handleCopy}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <span className="font-mono tracking-wider hidden sm:inline">{roomCode}</span>
-              <span className="font-mono tracking-wider sm:hidden">{roomCode?.slice(0, 4)}...</span>
-              {copyMessage ? (
-                <Check className="h-3.5 w-3.5 text-emerald-400" />
-              ) : (
-                <Copy className="h-3.5 w-3.5" />
-              )}
-            </button>
+        </header>
+
+        {/* Error */}
+        {error && (
+          <div className="mx-4 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
+            <p className="text-xs text-red-400 text-center">{error}</p>
           </div>
-        </div>
-      </header>
+        )}
 
-      {/* Error */}
-      {error && (
-        <div className="mx-4 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
-          <p className="text-xs text-red-400 text-center">{error}</p>
-        </div>
-      )}
-
-      {/* Messages Area */}
-      <div
+        {/* Messages Area */}
+        <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-5 py-4 relative"
+        className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-5 py-4 relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-500/[0.03] via-transparent to-transparent"
       >
-        {messages.length > 0 ? (
-          <div className="max-w-3xl mx-auto space-y-1">
+          {messages.length > 0 ? (
+            <div className="max-w-4xl mx-auto space-y-1">
             {messages.map((message: any, index) => {
               const msgId = message.id;
               const isCurrentUser = message.user_id?.id === userId;
@@ -579,7 +591,7 @@ function ChatRoom() {
 
       {/* Message Input */}
       <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl p-3 sm:p-4">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           {/* File attachments preview */}
           {imagePreviews.length > 0 && (
             <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
@@ -714,6 +726,85 @@ function ChatRoom() {
           </div>
         </div>
       </div>
+      </div>
+
+      {/* Right: Room Info Panel */}
+      <aside className="hidden lg:flex w-[360px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
+        <div className="shrink-0 border-b border-border/50 bg-gradient-to-r from-purple-500/5 to-blue-500/5 px-5 py-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Room Info</h3>
+        </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-4 space-y-5">
+          <div className="glass rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-foreground">{roomName}</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <code className="text-xs font-mono bg-background/80 px-2.5 py-1 rounded-lg text-muted-foreground border border-border/30 flex-1 truncate">{roomCode}</code>
+              <button onClick={handleCopy} className="h-7 w-7 rounded-lg bg-background/80 border border-border/30 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-purple-500/50 transition-colors">
+                {copyMessage ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border/30" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card/60 px-2 text-muted-foreground">Members</span>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            {roomUsers.map((u: any) => {
+              const isSelf = u.id === userId;
+              return (
+                <div key={u.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-secondary/30 transition-colors group">
+                  <div className="relative shrink-0">
+                    <Avatar className="h-9 w-9 ring-2 ring-border/50 group-hover:ring-purple-500/30 transition-all">
+                      <AvatarImage src={u.profile_pic} alt={u.user_name} className="object-cover" />
+                      <AvatarFallback className="text-[10px] bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-purple-300">
+                        {u.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-card animate-pulse-dot" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {u.user_name}
+                      {isSelf && <span className="text-muted-foreground font-normal ml-1 text-xs">(you)</span>}
+                    </p>
+                    <p className="text-[10px] text-emerald-400/80 flex items-center gap-1">
+                      <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                      Online
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border/30" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card/60 px-2 text-muted-foreground">Stats</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div className="glass rounded-xl p-3 text-center">
+              <p className="text-lg font-bold bg-gradient-to-br from-purple-400 to-blue-400 bg-clip-text text-transparent">{messages.length}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Messages</p>
+            </div>
+            <div className="glass rounded-xl p-3 text-center">
+              <p className="text-lg font-bold bg-gradient-to-br from-purple-400 to-blue-400 bg-clip-text text-transparent">{roomUsers.length}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">Members</p>
+            </div>
+          </div>
+        </div>
+      </aside>
 
       {/* Floating DM panel — positioned at bubble, draggable via header, follows bubble */}
       {activeDmUser && panelOffset && (() => {
