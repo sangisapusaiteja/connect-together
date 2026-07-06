@@ -101,11 +101,9 @@ export default function IndexPage() {
   };
 
   const checkUsername = async () => {
-    if (!username.trim() || !roomCode) { setError("Enter a room code and username first."); return; }
+    if (!username.trim()) { setError("Enter a username first."); return; }
     setCheckingUsername(true); setError(null);
-    const { data: room } = await supabaseBrowserClient.from("rooms").select("id").eq("room_code", roomCode).single();
-    if (!room) { setError("Invalid room code."); setCheckingUsername(false); return; }
-    const { data: existing } = await supabaseBrowserClient.from("users").select("id, user_name").eq("room_id", room.id).eq("username", username.trim()).maybeSingle();
+    const { data: existing } = await supabaseBrowserClient.from("users").select("id, user_name").eq("username", username.trim()).maybeSingle();
     if (existing) { setIsExistingUser(true); setPersonName(existing.user_name || ""); }
     else { setIsExistingUser(false); setPersonName(""); }
     setUsernameAvailable(true); setUsernameChecked(true); setError(null); setCheckingUsername(false);
@@ -128,6 +126,10 @@ export default function IndexPage() {
       if (insertError) { setError(insertError.message); }
       else {
         const userId = insertedData[0].id;
+        // Update display name globally for all rooms this user is in
+        if (personName.trim()) {
+          await supabaseBrowserClient.from("users").update({ user_name: personName.trim() }).eq("username", username);
+        }
         await supabaseBrowserClient.from("rooms").update({ created_by: userId }).eq("id", data.id).is("created_by", null);
         try { localStorage.setItem("last-username", username); } catch {}
         const encryptedRoomId = CryptoJS.AES.encrypt(String(data.id), secretKey).toString();
