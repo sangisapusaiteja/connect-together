@@ -836,12 +836,13 @@ function ChatRoom() {
             </div>
             <div className="grid grid-cols-3 gap-2">
               {(() => {
-                const shareText = `Join me on ConnectTogether! 🎉\nRoom: ${roomName}\nCode: ${roomCode}\n\nConnect with anyone, anywhere.`;
+                const rawShare = `Join me on ConnectTogether!\n\nRoom: ${roomName}\nCode: ${roomCode}\n\nConnect with anyone, anywhere.`;
                 const shareUrl = typeof window !== "undefined" ? window.location.origin : "";
+                const fullShare = `${rawShare}\n${shareUrl}`;
                 return (
                   <>
                     <a
-                      href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+                      href={`https://wa.me/?text=${encodeURIComponent(fullShare)}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/30 bg-background/40 hover:bg-[#25D366]/10 hover:border-[#25D366]/30 transition-all group active:scale-95"
@@ -852,7 +853,7 @@ function ChatRoom() {
                       <span className="text-[9px] font-medium text-muted-foreground group-hover:text-[#25D366] transition-colors">WhatsApp</span>
                     </a>
                     <a
-                      href={`mailto:?subject=${encodeURIComponent(`Join "${roomName}" on ConnectTogether`)}&body=${encodeURIComponent(shareText)}`}
+                      href={`mailto:?subject=${encodeURIComponent(`Join "${roomName}" on ConnectTogether`)}&body=${encodeURIComponent(rawShare + "\n\n" + shareUrl)}`}
                       className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/30 bg-background/40 hover:bg-[#EA4335]/10 hover:border-[#EA4335]/30 transition-all group active:scale-95"
                     >
                       <Mail className="h-5 w-5 text-muted-foreground group-hover:text-[#EA4335] transition-colors" />
@@ -860,8 +861,7 @@ function ChatRoom() {
                     </a>
                     <button
                       onClick={() => {
-                        const text = `${shareText}\n${shareUrl}`;
-                        navigator.clipboard.writeText(text);
+                        navigator.clipboard.writeText(fullShare);
                         setShareCopied(true);
                         setTimeout(() => setShareCopied(false), 2000);
                       }}
