@@ -17,6 +17,10 @@ export default function IndexPage() {
   const [roomName, setRoomName] = useState("");
   const [roomCode, setRoomCode] = useState("");
   const [personName, setPersonName] = useState("");
+  const [username, setUsername] = useState("");
+  const [usernameChecked, setUsernameChecked] = useState(false);
+  const [usernameAvailable, setUsernameAvailable] = useState<boolean | null>(null);
+  const [checkingUsername, setCheckingUsername] = useState(false);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoadingCreate, setIsLoadingCreate] = useState(false);
@@ -91,8 +95,13 @@ export default function IndexPage() {
   const handleEnterRoom = async () => {
     setIsLoadingEnter(true);
     setError(null);
-    if (!roomCode || !personName) {
-      setError("Please provide a room code and your name.");
+    if (!roomCode || !username || !personName) {
+      setError("Please provide a room code, username, and display name.");
+      setIsLoadingEnter(false);
+      return;
+    }
+    if (!usernameChecked || usernameAvailable !== true) {
+      setError("Please check if your username is available first.");
       setIsLoadingEnter(false);
       return;
     }
@@ -113,15 +122,16 @@ export default function IndexPage() {
     if (error || !data) {
       setError("Invalid room code. Please try again.");
     } else {
-      const userData: { room_id: any; user_name: string; profile_pic?: string } = {
+      const userData: { room_id: any; user_name: string; username: string; profile_pic?: string } = {
         room_id: data.id,
         user_name: personName,
+        username: username,
       };
       if (publicUrl) userData.profile_pic = publicUrl;
       const { data: insertedData, error: insertError } =
         await supabaseBrowserClient
           .from("users")
-          .upsert([userData], { onConflict: "room_id, user_name" })
+          .upsert([userData], { onConflict: "room_id, username" })
           .select("id");
       if (insertError) {
         setError(insertError.message);
@@ -148,6 +158,40 @@ export default function IndexPage() {
   };
 
   const generateUniqueCode = () => Math.random().toString(36).substr(2, 6).toUpperCase();
+
+  const checkUsername = async () => {
+    if (!roomCode || !username.trim()) {
+      setError("Enter a room code and username first.");
+      return;
+    }
+    setCheckingUsername(true);
+    setError(null);
+    const { data: room } = await supabaseBrowserClient
+      .from("rooms")
+      .select("id")
+      .eq("room_code", roomCode)
+      .single();
+    if (!room) {
+      setError("Invalid room code.");
+      setCheckingUsername(false);
+      return;
+    }
+    const { data: existing } = await supabaseBrowserClient
+      .from("users")
+      .select("id")
+      .eq("room_id", room.id)
+      .eq("username", username.trim())
+      .maybeSingle();
+    if (existing) {
+      setUsernameAvailable(false);
+      setError("Username is already taken in this room.");
+    } else {
+      setUsernameAvailable(true);
+      setUsernameChecked(true);
+      setError(null);
+    }
+    setCheckingUsername(false);
+  };
 
   const handleCopy = () => {
     if (generatedCode) {
@@ -251,13 +295,45 @@ export default function IndexPage() {
                     type="text"
                     placeholder="e.g. ABC123"
                     value={roomCode}
-                    onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                    onChange={(e) => { setRoomCode(e.target.value.toUpperCase()); setUsernameChecked(false); setUsernameAvailable(null); }}
                     onKeyDown={(e) => { if (e.key === "Enter") handleEnterRoom(); }}
                     className="bg-background/50 border-border/50 h-11 text-sm tracking-widest font-mono uppercase placeholder:tracking-normal placeholder:font-sans placeholder:normal-case"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Your Name</Label>
+                  <Label className="text-sm font-medium text-foreground">Username</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="text"
+                      placeholder="Unique login ID"
+                      value={username}
+                      onChange={(e) => { setUsername(e.target.value); setUsernameChecked(false); setUsernameAvailable(null); }}
+                      className="flex-1 bg-background/50 border-border/50 h-11 text-sm font-mono"
+                    />
+                    <Button
+                      onClick={checkUsername}
+                      disabled={checkingUsername || !username.trim() || !roomCode}
+                      variant="outline"
+                      className="shrink-0 h-11 px-4 border-border/50"
+                    >
+                      {checkingUsername ? (
+                        <span className="h-4 w-4 border-2 border-foreground/30 border-t-foreground rounded-full animate-spin" />
+                      ) : usernameChecked && usernameAvailable ? (
+                        <Check className="h-4 w-4 text-emerald-400" />
+                      ) : (
+                        <span className="text-xs">Check</span>
+                      )}
+                    </Button>
+                  </div>
+                  {usernameChecked && usernameAvailable && (
+                    <p className="text-xs text-emerald-400 flex items-center gap-1">
+                      <Check className="h-3 w-3" />
+                      Username available
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-foreground">Display Name</Label>
                   <Input
                     type="text"
                     placeholder="What should we call you?"
