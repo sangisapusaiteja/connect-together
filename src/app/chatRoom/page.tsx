@@ -58,6 +58,8 @@ function ChatRoom() {
   const [editingBio, setEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState("");
   const [editingProfilePic, setEditingProfilePic] = useState(false);
+  const [editingDisplayName, setEditingDisplayName] = useState(false);
+  const [displayNameDraft, setDisplayNameDraft] = useState("");
   const [showMobileInfo, setShowMobileInfo] = useState(false);
   const [showGroups, setShowGroups] = useState(true);
   const [myGroups, setMyGroups] = useState<any[]>([]);
@@ -585,6 +587,20 @@ function ChatRoom() {
     }
   };
 
+  const handleSaveDisplayName = async () => {
+    if (!userId || !displayNameDraft.trim()) return;
+    const { error } = await supabaseBrowserClient
+      .from("users")
+      .update({ user_name: displayNameDraft.trim() })
+      .eq("id", userId);
+    if (!error) {
+      setEditingDisplayName(false);
+      setRoomUsers((prev) =>
+        prev.map((u: any) => (u.id === userId ? { ...u, user_name: displayNameDraft.trim() } : u))
+      );
+    }
+  };
+
   const handleProfilePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !userId) return;
@@ -791,39 +807,11 @@ function ChatRoom() {
                 <Users className="h-4 w-4" />
               </button>
               <button
-                onClick={() => setShowGroups(!showGroups)}
-                className={`h-8 w-8 rounded-lg transition-colors flex items-center justify-center ${
-                  showGroups ? "bg-ring/15 text-ring" : "bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground"
-                }`}
-                title="My Groups"
-              >
-                <MessageCircle className="h-4 w-4" />
-              </button>
-              <button
                 onClick={() => { localStorage.removeItem("last-username"); router.push("/"); }}
                 className="h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
                 title="Logout"
               >
                 <LogOut className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                className="h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
-                title="Toggle theme"
-              >
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </button>
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                <span className="font-mono tracking-wider hidden sm:inline">{roomCode}</span>
-                <span className="font-mono tracking-wider sm:hidden">{roomCode?.slice(0, 4)}...</span>
-                {copyMessage ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
               </button>
             </div>
           </div>
@@ -1274,9 +1262,35 @@ function ChatRoom() {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">
-                    {roomUsers.find((u: any) => u.id === userId)?.user_name || "You"}
-                  </p>
+                  {editingDisplayName ? (
+                    <div className="flex items-start gap-1.5">
+                      <input
+                        value={displayNameDraft}
+                        onChange={(e) => setDisplayNameDraft(e.target.value)}
+                        className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-2.5 py-1.5 text-sm text-foreground font-medium focus:outline-none focus:border-ring/50"
+                        autoFocus
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSaveDisplayName(); } }}
+                      />
+                      <button onClick={handleSaveDisplayName} className="h-7 w-7 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all shrink-0">
+                        <CheckCheck className="h-3 w-3" />
+                      </button>
+                      <button onClick={() => setEditingDisplayName(false)} className="h-7 w-7 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 group/name">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        {roomUsers.find((u: any) => u.id === userId)?.user_name || "You"}
+                      </p>
+                      <button
+                        onClick={() => { setDisplayNameDraft(roomUsers.find((u: any) => u.id === userId)?.user_name || ""); setEditingDisplayName(true); }}
+                        className="h-4 w-4 rounded opacity-0 group-hover/name:opacity-100 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0"
+                      >
+                        <Edit3 className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                  )}
                   <p className="text-[10px] flex items-center gap-1">
                     <span className={`h-1 w-1 rounded-full ${true ? "bg-emerald-400" : "bg-muted-foreground"}`} />
                     Online now

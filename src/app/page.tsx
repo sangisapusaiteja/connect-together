@@ -98,8 +98,8 @@ export default function IndexPage() {
   const checkUsername = async () => {
     if (!username.trim()) { setError("Enter a username first."); return; }
     setCheckingUsername(true); setError(null);
-    const { data: existing } = await supabaseBrowserClient.from("users").select("id, user_name").eq("username", username.trim()).maybeSingle();
-    if (existing) { setIsExistingUser(true); setPersonName(existing.user_name || ""); }
+    const { data: existing } = await supabaseBrowserClient.from("users").select("id, user_name").eq("username", username.trim()).limit(1);
+    if (existing && existing.length > 0) { setIsExistingUser(true); setPersonName(existing[0].user_name || ""); }
     else { setIsExistingUser(false); setPersonName(""); }
     setUsernameAvailable(true); setUsernameChecked(true); setError(null); setCheckingUsername(false);
   };

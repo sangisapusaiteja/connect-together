@@ -179,8 +179,8 @@ export default function JoinPage() {
       .from("users")
       .select("id, user_name")
       .eq("username", username.trim())
-      .maybeSingle();
-    if (existing) { setIsExistingUser(true); setPersonName(existing.user_name || ""); }
+      .limit(1);
+    if (existing && existing.length > 0) { setIsExistingUser(true); setPersonName(existing[0].user_name || ""); }
     else { setIsExistingUser(false); setPersonName(""); }
     setUsernameAvailable(true); setUsernameChecked(true); setError(null); setCheckingUsername(false);
   };
