@@ -112,6 +112,16 @@
   background-clip: text;
 }
 
+/* Accent background for chat area */
+.accent-chat-bg {
+  background: linear-gradient(180deg, hsl(262 83% 58% / 0.04) 0%, transparent 30%, transparent 70%, hsl(217 91% 60% / 0.03) 100%);
+}
+[data-accent="ocean"] .accent-chat-bg { background: linear-gradient(180deg, hsl(217 91% 60% / 0.04) 0%, transparent 30%, transparent 70%, hsl(187 94% 43% / 0.03) 100%); }
+[data-accent="forest"] .accent-chat-bg { background: linear-gradient(180deg, hsl(142 76% 36% / 0.04) 0%, transparent 30%, transparent 70%, hsl(162 87% 40% / 0.03) 100%); }
+[data-accent="sunset"] .accent-chat-bg { background: linear-gradient(180deg, hsl(15 85% 55% / 0.04) 0%, transparent 30%, transparent 70%, hsl(0 72% 51% / 0.03) 100%); }
+[data-accent="rose"] .accent-chat-bg { background: linear-gradient(180deg, hsl(340 82% 60% / 0.04) 0%, transparent 30%, transparent 70%, hsl(300 76% 62% / 0.03) 100%); }
+[data-accent="midnight"] .accent-chat-bg { background: linear-gradient(180deg, hsl(230 70% 55% / 0.04) 0%, transparent 30%, transparent 70%, hsl(238 86% 67% / 0.03) 100%); }
+
 /* Subtle glow effect */
 .glow-purple {
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 60px rgba(139, 92, 246, 0.05);

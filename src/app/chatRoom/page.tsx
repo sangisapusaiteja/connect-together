@@ -828,7 +828,7 @@ function ChatRoom() {
         <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto custom-scrollbar px-0 relative"
+        className="flex-1 overflow-y-auto custom-scrollbar px-0 relative accent-chat-bg"
       >
           {messages.length > 0 ? (
             <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-0.5">
