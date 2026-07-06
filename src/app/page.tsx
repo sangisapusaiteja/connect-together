@@ -69,7 +69,23 @@ export default function IndexPage() {
     const { data: existing } = await supabaseBrowserClient.from("users").select("id").eq("username", loginUsername.trim()).maybeSingle();
     if (!existing) { setLoginError("Username not found. Join a room first."); setLoginLoading(false); return; }
     try { localStorage.setItem("last-username", loginUsername.trim()); } catch {}
-    router.push("/groups");
+    // Redirect to first group's chat room
+    const { data: entries } = await supabaseBrowserClient
+      .from("users")
+      .select("id, room_id, rooms!users_room_id_fkey(room_name, room_code)")
+      .eq("username", loginUsername.trim())
+      .limit(1)
+      .single();
+    if (entries) {
+      const room = Array.isArray(entries.rooms) ? entries.rooms[0] : entries.rooms;
+      const encryptedRoomId = CryptoJS.AES.encrypt(String(entries.room_id), secretKey).toString();
+      const encryptedUserId = CryptoJS.AES.encrypt(String(entries.id), secretKey).toString();
+      const encryptedRoomName = CryptoJS.AES.encrypt(room.room_name, secretKey).toString();
+      const encryptedRoomCode = CryptoJS.AES.encrypt(room.room_code, secretKey).toString();
+      router.push(`/chatRoom?roomId=${encodeURIComponent(encryptedRoomId)}&userId=${encodeURIComponent(encryptedUserId)}&roomName=${encodeURIComponent(encryptedRoomName)}&roomCode=${encodeURIComponent(encryptedRoomCode)}`);
+    } else {
+      router.push("/");
+    }
   };
 
   const handleCreateRoom = async () => {
