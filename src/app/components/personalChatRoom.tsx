@@ -164,7 +164,7 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
           <div className="relative shrink-0">
             <Avatar className="h-8 w-8 border border-border/50">
               <AvatarImage src={targetUser.profile_pic} alt={targetUser.user_name} className="object-cover" />
-              <AvatarFallback className="text-[9px] bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-purple-300">{initials}</AvatarFallback>
+              <AvatarFallback className="text-[9px] bg-gradient-to-br accent-avatar-bg">{initials}</AvatarFallback>
             </Avatar>
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 border-2 border-card" />
           </div>
@@ -208,7 +208,7 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
             className={`shrink-0 h-8 w-8 rounded-lg transition-all flex items-center justify-center ${
-              showEmojiPicker ? "bg-purple-500/15 text-purple-400 border border-purple-500/30" : "bg-secondary/30 hover:bg-secondary/50 text-muted-foreground"
+              showEmojiPicker ? "bg-primary/15 text-primary border border-primary/30" : "bg-secondary/30 hover:bg-secondary/50 text-muted-foreground"
             }`}
           >
             <Smile className="h-3.5 w-3.5" />

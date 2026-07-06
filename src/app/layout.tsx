@@ -21,6 +21,16 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.className} min-h-screen bg-background`}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                try {
+                  var accent = localStorage.getItem("accent-pack") || "default";
+                  document.documentElement.setAttribute("data-accent", accent);
+                } catch (e) {}
+              `,
+            }}
+          />
           {children}
         </ThemeProvider>
       </body>

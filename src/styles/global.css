@@ -50,6 +50,27 @@
   }
 }
 
+/* Theme packs — override accent colors */
+[data-accent="ocean"] { --primary: 217 91% 60%; --accent: 217 91% 60%; --ring: 217 91% 60%; }
+[data-accent="ocean"] .gradient-text { background: linear-gradient(135deg, #3b82f6, #06b6d4, #0ea5e9); }
+[data-accent="ocean"] .gradient-border::before { background: linear-gradient(135deg, rgba(59,130,246,0.4), rgba(6,182,212,0.2), rgba(14,165,233,0.4)); }
+
+[data-accent="forest"] { --primary: 142 76% 36%; --accent: 142 76% 36%; --ring: 142 76% 36%; }
+[data-accent="forest"] .gradient-text { background: linear-gradient(135deg, #22c55e, #10b981, #059669); }
+[data-accent="forest"] .gradient-border::before { background: linear-gradient(135deg, rgba(34,197,94,0.4), rgba(16,185,129,0.2), rgba(5,150,105,0.4)); }
+
+[data-accent="sunset"] { --primary: 15 85% 55%; --accent: 15 85% 55%; --ring: 15 85% 55%; }
+[data-accent="sunset"] .gradient-text { background: linear-gradient(135deg, #f97316, #ef4444, #d946ef); }
+[data-accent="sunset"] .gradient-border::before { background: linear-gradient(135deg, rgba(249,115,22,0.4), rgba(239,68,68,0.2), rgba(217,70,239,0.4)); }
+
+[data-accent="rose"] { --primary: 340 82% 60%; --accent: 340 82% 60%; --ring: 340 82% 60%; }
+[data-accent="rose"] .gradient-text { background: linear-gradient(135deg, #ec4899, #d946ef, #a855f7); }
+[data-accent="rose"] .gradient-border::before { background: linear-gradient(135deg, rgba(236,72,153,0.4), rgba(217,70,239,0.2), rgba(168,85,247,0.4)); }
+
+[data-accent="midnight"] { --primary: 230 70% 55%; --accent: 230 70% 55%; --ring: 230 70% 55%; }
+[data-accent="midnight"] .gradient-text { background: linear-gradient(135deg, #4f46e5, #6366f1, #818cf8); }
+[data-accent="midnight"] .gradient-border::before { background: linear-gradient(135deg, rgba(79,70,229,0.4), rgba(99,102,241,0.2), rgba(129,140,248,0.4)); }
+
 @layer base {
   * {
     @apply border-border;
@@ -95,6 +116,29 @@
 .glow-purple {
   box-shadow: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 60px rgba(139, 92, 246, 0.05);
 }
+
+/* Accent-based gradient backgrounds */
+.accent-avatar-bg {
+  background: linear-gradient(135deg, hsl(262 83% 58% / 0.2), hsl(217 91% 60% / 0.2));
+  color: hsl(262 83% 78%);
+}
+[data-accent="ocean"] .accent-avatar-bg { background: linear-gradient(135deg, hsl(217 91% 60% / 0.2), hsl(187 94% 43% / 0.2)); color: hsl(217 91% 75%); }
+[data-accent="forest"] .accent-avatar-bg { background: linear-gradient(135deg, hsl(142 76% 36% / 0.2), hsl(162 87% 40% / 0.2)); color: hsl(142 76% 65%); }
+[data-accent="sunset"] .accent-avatar-bg { background: linear-gradient(135deg, hsl(15 85% 55% / 0.2), hsl(0 72% 51% / 0.2)); color: hsl(15 85% 75%); }
+[data-accent="rose"] .accent-avatar-bg { background: linear-gradient(135deg, hsl(340 82% 60% / 0.2), hsl(300 76% 62% / 0.2)); color: hsl(340 82% 75%); }
+[data-accent="midnight"] .accent-avatar-bg { background: linear-gradient(135deg, hsl(230 70% 55% / 0.2), hsl(238 86% 67% / 0.2)); color: hsl(230 70% 75%); }
+
+.accent-stat-grad {
+  background: linear-gradient(135deg, #a855f7, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+[data-accent="ocean"] .accent-stat-grad { background: linear-gradient(135deg, #3b82f6, #0ea5e9); -webkit-background-clip: text; background-clip: text; }
+[data-accent="forest"] .accent-stat-grad { background: linear-gradient(135deg, #22c55e, #059669); -webkit-background-clip: text; background-clip: text; }
+[data-accent="sunset"] .accent-stat-grad { background: linear-gradient(135deg, #f97316, #d946ef); -webkit-background-clip: text; background-clip: text; }
+[data-accent="rose"] .accent-stat-grad { background: linear-gradient(135deg, #ec4899, #a855f7); -webkit-background-clip: text; background-clip: text; }
+[data-accent="midnight"] .accent-stat-grad { background: linear-gradient(135deg, #4f46e5, #818cf8); -webkit-background-clip: text; background-clip: text; }
 
 /* Animated gradient border */
 .gradient-border {
