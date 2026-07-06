@@ -12,7 +12,7 @@ import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
 import {
   Copy, Check, Send, MessageCircle, ArrowLeft,
-  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon
+  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon, Users, Palette
 } from "lucide-react";
 
 const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
@@ -772,112 +772,195 @@ function ChatRoom() {
 
       {/* Right: Room Info Panel */}
       <aside className="hidden lg:flex w-[360px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
-        <div className="shrink-0 border-b border-border/50 bg-gradient-to-r from-purple-500/5 to-blue-500/5 px-5 py-4">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Room Info</h3>
+        {/* Animated Banner */}
+        <div className="relative shrink-0 h-36 overflow-hidden">
+          <div
+            className="absolute inset-0 animate-gradient-shift"
+            style={{
+              background: `linear-gradient(-45deg, ${currentPack.colors[0]}44, ${currentPack.colors[1]}33, ${currentPack.colors[2]}44, ${currentPack.colors[0]}55)`,
+              backgroundSize: "400% 400%",
+            }}
+          />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,transparent_20%,hsl(var(--background))_80%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,transparent_40%,hsl(var(--background))_70%)]" />
+          <div className="absolute bottom-4 left-5 flex items-center gap-3">
+            <div className="relative">
+              <Avatar className="h-14 w-14 ring-[3px] ring-background shadow-2xl">
+                <AvatarFallback className="text-lg font-bold accent-avatar-bg shadow-inner">
+                  {(roomName || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-[3px] ring-background animate-pulse-dot" />
+            </div>
+            <div className="space-y-0.5">
+              <h2 className="text-base font-bold text-foreground drop-shadow-lg">{roomName}</h2>
+              <p className="text-xs text-muted-foreground/90 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                {roomUsers.length} member{roomUsers.length !== 1 ? "s" : ""} · Active
+              </p>
+            </div>
+          </div>
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-4 space-y-5">
-          <div className="glass rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-foreground">{roomName}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <code className="text-xs font-mono bg-background/80 px-2.5 py-1 rounded-lg text-muted-foreground border border-border/30 flex-1 truncate">{roomCode}</code>
-              <button onClick={handleCopy} className="h-7 w-7 rounded-lg bg-background/80 border border-border/30 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 transition-colors">
-                {copyMessage ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-              </button>
-            </div>
-          </div>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border/30" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card/60 px-2 text-muted-foreground">Members</span>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            {roomUsers.map((u: any) => {
-              const isSelf = u.id === userId;
-              return (
-                <div key={u.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-secondary/30 transition-colors group">
-                  <div className="relative shrink-0">
-                    <Avatar className="h-9 w-9 ring-2 ring-border/50 group-hover:ring-ring/30 transition-all">
-                      <AvatarImage src={u.profile_pic} alt={u.user_name} className="object-cover" />
-                      <AvatarFallback className="text-[10px] bg-gradient-to-br accent-avatar-bg">
-                        {u.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-card animate-pulse-dot" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {u.user_name}
-                      {isSelf && <span className="text-muted-foreground font-normal ml-1 text-xs">(you)</span>}
-                    </p>
-                    <p className="text-[10px] text-emerald-400/80 flex items-center gap-1">
-                      <span className="h-1 w-1 rounded-full bg-emerald-400" />
-                      Online
-                    </p>
-                  </div>
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-5">
+          {/* Room Code — quick copy */}
+          <div className="group relative">
+            <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-500"
+              style={{ background: `linear-gradient(135deg, ${currentPack.colors[0]}44, ${currentPack.colors[2]}44)` }}
+            />
+            <div className="relative flex items-center gap-3 bg-secondary/40 rounded-xl p-3.5 border border-border/40 group-hover:border-ring/30 transition-all">
+              <div className="flex-1 min-w-0">
+                <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">Invite Code</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-sm font-mono text-foreground tracking-[0.15em]">{roomCode}</code>
+                  <span className="text-[8px] text-muted-foreground/50 uppercase tracking-widest font-mono">LIVE</span>
                 </div>
-              );
-            })}
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border/30" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card/60 px-2 text-muted-foreground">Stats</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2">
-            <div className="glass rounded-xl p-3 text-center">
-              <p className="text-lg font-bold accent-stat-grad">{messages.length}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Messages</p>
-            </div>
-            <div className="glass rounded-xl p-3 text-center">
-              <p className="text-lg font-bold accent-stat-grad">{roomUsers.length}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">Members</p>
-            </div>
-          </div>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-border/30" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-card/60 px-2 text-muted-foreground">Theme Pack</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {ACCENT_PACKS.map((pack) => (
+              </div>
               <button
-                key={pack.id}
-                onClick={() => setAccentPack(pack.id)}
-                className={`relative p-2 rounded-xl border transition-all ${
-                  accentPack === pack.id
-                    ? "border-ring/60 bg-secondary/40 shadow-sm"
-                    : "border-border/30 bg-background/40 hover:bg-secondary/20 hover:border-border/60"
-                }`}
-                title={pack.name}
+                onClick={handleCopy}
+                className="shrink-0 h-9 w-9 rounded-lg bg-background/70 border border-border/40 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 hover:bg-ring/10 transition-all active:scale-95"
               >
-                <div className={`h-6 w-full rounded-lg mb-1 bg-gradient-to-r ${pack.gradient}`} />
-                <p className={`text-[10px] font-medium ${
-                  accentPack === pack.id ? "text-foreground" : "text-muted-foreground"
-                }`}>
-                  {pack.name}
-                </p>
-                {accentPack === pack.id && (
-                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-ring border-2 border-card" />
-                )}
+                {copyMessage ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
               </button>
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              { label: "Messages", value: messages.length, icon: MessageCircle },
+              { label: "Members", value: roomUsers.length, icon: Users },
+            ].map((stat) => (
+              <div key={stat.label} className="glass rounded-xl p-3.5 text-center hover:bg-secondary/20 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-default">
+                <p className="text-xl font-bold accent-stat-grad leading-none">{stat.value}</p>
+                <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center justify-center gap-1">
+                  <stat.icon className="h-3 w-3" />
+                  {stat.label}
+                </p>
+              </div>
             ))}
+          </div>
+
+          {/* Members */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                Members
+                <span className="text-muted-foreground font-normal text-[10px]">({roomUsers.length})</span>
+              </h4>
+            </div>
+            <div className="space-y-0.5">
+              {roomUsers.map((u: any) => {
+                const isSelf = u.id === userId;
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/30 transition-all group cursor-pointer"
+                    onClick={() => {
+                      if (!isSelf) {
+                        const bubblePos = bubblePositions[u.id];
+                        const others = roomUsers.filter((x: any) => x.id !== userId);
+                        const idx = others.indexOf(u);
+                        const defaultIndex = others.length - 1 - idx;
+                        const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
+                        const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
+                        const bp = bubblePos || { x: defaultLeft, y: defaultTop };
+                        const panelX = bp.x < 400 ? bp.x + 56 : bp.x - 368;
+                        const panelY = Math.max(10, Math.min(bp.y - 24, typeof window !== 'undefined' ? window.innerHeight - 480 : 600));
+                        setPanelOffset({ x: panelX - bp.x, y: panelY - bp.y });
+                        setActiveDmUser(u);
+                      }
+                    }}
+                  >
+                    <div className="relative shrink-0">
+                      <Avatar className="h-9 w-9 ring-2 ring-border/50 group-hover:ring-ring/30 transition-all">
+                        <AvatarImage src={u.profile_pic} alt={u.user_name} className="object-cover" />
+                        <AvatarFallback className="text-[10px] accent-avatar-bg">
+                          {getInitials(u.user_name || "?")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-card animate-pulse-dot" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-foreground truncate">{u.user_name}</p>
+                        {isSelf && (
+                          <span className="text-[8px] font-semibold text-muted-foreground bg-secondary/60 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">you</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-emerald-400/80 flex items-center gap-1">
+                        <span className="h-1 w-1 rounded-full bg-emerald-400" />
+                        Online now
+                      </p>
+                    </div>
+                    {!isSelf && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const bubblePos = bubblePositions[u.id];
+                          const others = roomUsers.filter((x: any) => x.id !== userId);
+                          const idx = others.indexOf(u);
+                          const defaultIndex = others.length - 1 - idx;
+                          const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
+                          const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
+                          const bp = bubblePos || { x: defaultLeft, y: defaultTop };
+                          const panelX = bp.x < 400 ? bp.x + 56 : bp.x - 368;
+                          const panelY = Math.max(10, Math.min(bp.y - 24, typeof window !== 'undefined' ? window.innerHeight - 480 : 600));
+                          setPanelOffset({ x: panelX - bp.x, y: panelY - bp.y });
+                          setActiveDmUser(u);
+                        }}
+                        className="shrink-0 h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 bg-background/80 border border-border/30 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 hover:bg-ring/10 transition-all active:scale-90"
+                        title={`Message ${u.user_name}`}
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {roomUsers.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-6">No members yet</p>
+              )}
+            </div>
+          </div>
+
+          {/* Theme Packs */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
+                Theme
+              </h4>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {ACCENT_PACKS.map((pack) => (
+                <button
+                  key={pack.id}
+                  onClick={() => setAccentPack(pack.id)}
+                  className={`relative p-2 rounded-xl border transition-all duration-200 active:scale-95 ${
+                    accentPack === pack.id
+                      ? "border-ring/60 bg-secondary/40 shadow-sm shadow-ring/10"
+                      : "border-border/30 bg-background/40 hover:bg-secondary/20 hover:border-border/60"
+                  }`}
+                  title={pack.name}
+                >
+                  <div
+                    className={`h-7 w-full rounded-lg mb-1.5 bg-gradient-to-r ${pack.gradient} ${
+                      accentPack === pack.id ? "shadow-sm shadow-ring/20" : ""
+                    }`}
+                  />
+                  <p className={`text-[10px] font-medium leading-tight ${
+                    accentPack === pack.id ? "text-foreground" : "text-muted-foreground"
+                  }`}>
+                    {pack.name}
+                  </p>
+                  {accentPack === pack.id && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-ring border-2 border-card shadow-sm" />
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </aside>

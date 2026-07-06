@@ -188,6 +188,16 @@
   animation: pulse-dot 2s ease-in-out infinite;
 }
 
+/* Gradient shift for animated banner */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-gradient-shift {
+  animation: gradient-shift 8s ease infinite;
+}
+
 /* Subtle hover lift */
 .hover-lift {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
