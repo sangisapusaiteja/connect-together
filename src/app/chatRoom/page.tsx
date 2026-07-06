@@ -3,14 +3,15 @@
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@*/components/ui/avatar";
+import { Sheet, SheetContent, SheetTitle } from "@*/components/ui/sheet";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { FloatingDmPanel } from "@app/components/personalChatRoom";
+import { PersonalChatRoomPage } from "@app/components/personalChatRoom";
 import CryptoJS from "crypto-js";
 import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
 import {
-  Copy, Check, Send, MessageCircle, ArrowLeft,
+  Copy, Check, Send, MessageCircle, ArrowLeft, Users,
   ChevronDown, Smile, Paperclip, X, Loader2, History
 } from "lucide-react";
 
@@ -39,13 +40,11 @@ function Skeleton({ className, style }: { className?: string; style?: React.CSSP
   );
 }
 
-function ChatRoom() {
+function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState(false);
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
-  const [roomUsers, setRoomUsers] = useState<any[]>([]);
-  const [activeDmUser, setActiveDmUser] = useState<{ id: number; user_name: string; profile_pic?: string } | null>(null);
   const secretKey = "key";
 
   const searchParams = useSearchParams();
@@ -156,29 +155,6 @@ function ChatRoom() {
     return () => {
       supabaseBrowserClient.removeChannel(messageSubscription);
     };
-  }, [roomId]);
-
-  // Fetch room users for floating chat heads
-  useEffect(() => {
-    if (roomId === null) return;
-    const fetchUsers = async () => {
-      const { data, error } = await supabaseBrowserClient
-        .from("messages")
-        .select("user_id(id, user_name, profile_pic)")
-        .eq("room_id", roomId);
-      if (!error && data) {
-        const unique = Array.from(
-          new Map(data.map((item: any) => [item.user_id.id, item.user_id])).values()
-        );
-        setRoomUsers(unique);
-      }
-    };
-    fetchUsers();
-    const sub = supabaseBrowserClient
-      .channel(`room-users:${roomId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchUsers())
-      .subscribe();
-    return () => { supabaseBrowserClient.removeChannel(sub); };
   }, [roomId]);
 
   const handleSendMessage = async () => {
@@ -402,6 +378,12 @@ function ChatRoom() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              onClick={onToggleSidebar}
+              className="lg:hidden p-2 rounded-lg hover:bg-secondary/50 transition-colors"
+            >
+              <Users className="h-5 w-5 text-muted-foreground" />
+            </button>
+            <button
               onClick={handleCopy}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-xs font-medium text-muted-foreground hover:text-foreground"
             >
@@ -562,42 +544,6 @@ function ChatRoom() {
             </button>
           </div>
         )}
-
-        {/* Floating DM panel overlay */}
-        {activeDmUser && (
-          <div className="absolute bottom-4 right-4 z-30">
-            <FloatingDmPanel targetUser={activeDmUser} onClose={() => setActiveDmUser(null)} />
-          </div>
-        )}
-
-        {/* Floating chat heads */}
-        {roomUsers.length > 0 && !activeDmUser && (
-          <div className="absolute bottom-4 right-4 flex flex-col gap-2 z-20">
-            {roomUsers
-              .filter((u: any) => u.id !== userId)
-              .slice(0, 4)
-              .reverse()
-              .map((user: any, i: number) => (
-                <button
-                  key={user.id}
-                  onClick={() => setActiveDmUser(user)}
-                  className="group relative h-11 w-11 rounded-full bg-card border border-border/50 shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all hover:ring-2 hover:ring-purple-500/40"
-                  style={{ zIndex: roomUsers.length - i }}
-                >
-                  <Avatar className="h-full w-full">
-                    <AvatarImage src={user.profile_pic} alt={user.user_name} className="object-cover" />
-                    <AvatarFallback className="text-[10px] bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-purple-300">
-                      {user.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
-                    </AvatarFallback>
-                  </Avatar>
-                  {/* Tooltip */}
-                  <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-card border border-border/50 text-xs text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg">
-                    {user.user_name}
-                  </span>
-                </button>
-              ))}
-          </div>
-        )}
       </div>
 
       {/* Message Input */}
@@ -742,6 +688,9 @@ function ChatRoom() {
 }
 
 export default function AboutPageWrapper() {
+  const messageLength = useParamsStore((state) => state.messageLength);
+  const [showSidebar, setShowSidebar] = useState(false);
+
   return (
     <Suspense
       fallback={
@@ -752,8 +701,23 @@ export default function AboutPageWrapper() {
     >
       <div className="flex h-screen bg-background overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0">
-          <ChatRoom />
+          <ChatRoom onToggleSidebar={() => setShowSidebar(true)} />
         </div>
+
+        {messageLength > 0 && (
+          <div className="hidden lg:block w-[380px] border-l border-border/50">
+            <PersonalChatRoomPage />
+          </div>
+        )}
+
+        {messageLength > 0 && (
+          <Sheet open={showSidebar} onOpenChange={setShowSidebar}>
+            <SheetContent side="right" className="w-[85vw] sm:w-[380px] p-0">
+              <SheetTitle className="sr-only">Direct Messages</SheetTitle>
+              <PersonalChatRoomPage />
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
     </Suspense>
   );
