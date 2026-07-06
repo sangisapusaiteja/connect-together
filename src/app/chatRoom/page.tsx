@@ -3,15 +3,14 @@
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@*/components/ui/avatar";
-import { Sheet, SheetContent, SheetTitle } from "@*/components/ui/sheet";
 import { supabaseBrowserClient } from "@utils/supabase/client";
-import { Suspense, useEffect, useRef, useState } from "react";
-import { PersonalChatRoomPage } from "@app/components/personalChatRoom";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { FloatingDmPanel } from "@app/components/personalChatRoom";
 import CryptoJS from "crypto-js";
 import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
 import {
-  Copy, Check, Send, MessageCircle, ArrowLeft, Users,
+  Copy, Check, Send, MessageCircle, ArrowLeft,
   ChevronDown, Smile, Paperclip, X, Loader2, History
 } from "lucide-react";
 
@@ -40,11 +39,13 @@ function Skeleton({ className, style }: { className?: string; style?: React.CSSP
   );
 }
 
-function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
+function ChatRoom() {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState(false);
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
+  const [roomUsers, setRoomUsers] = useState<any[]>([]);
+  const [activeDmUser, setActiveDmUser] = useState<{ id: number; user_name: string; profile_pic?: string } | null>(null);
   const secretKey = "key";
 
   const searchParams = useSearchParams();
@@ -74,6 +75,18 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
   const messagesContainerRef = useRef<null | HTMLDivElement>(null);
   const emojiPickerRef = useRef<null | HTMLDivElement>(null);
   const fileInputRef = useRef<null | HTMLInputElement>(null);
+  const [bubblePositions, setBubblePositions] = useState<Record<number, { x: number; y: number }>>({});
+  const [panelOffset, setPanelOffset] = useState<{ x: number; y: number } | null>(null);
+  const draggingRef = useRef<{ id: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
+  const didDragRef = useRef(false);
+  const initialScrollDone = useRef(false);
+  const scrollToBottomOnRender = useCallback((el: HTMLDivElement | null) => {
+    messagesEndRef.current = el;
+    if (el && !initialScrollDone.current) {
+      initialScrollDone.current = true;
+      el.scrollIntoView({ behavior: "auto" });
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -157,6 +170,29 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
     };
   }, [roomId]);
 
+  // Fetch room users for floating chat heads
+  useEffect(() => {
+    if (roomId === null) return;
+    const fetchUsers = async () => {
+      const { data, error } = await supabaseBrowserClient
+        .from("messages")
+        .select("user_id(id, user_name, profile_pic)")
+        .eq("room_id", roomId);
+      if (!error && data) {
+        const unique = Array.from(
+          new Map(data.map((item: any) => [item.user_id.id, item.user_id])).values()
+        );
+        setRoomUsers(unique);
+      }
+    };
+    fetchUsers();
+    const sub = supabaseBrowserClient
+      .channel(`room-users:${roomId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => fetchUsers())
+      .subscribe();
+    return () => { supabaseBrowserClient.removeChannel(sub); };
+  }, [roomId]);
+
   const handleSendMessage = async () => {
     if (!roomId || !newMessage.trim() || !userId) return;
     const tempId = `opt-${Date.now()}`;
@@ -222,10 +258,10 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
     setImagePreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Auto-scroll on new messages only if near bottom
   useEffect(() => {
-    if (messagesEndRef.current && !showScrollBtn) {
-      messagesEndRef.current.scrollIntoView({ behavior: "auto" });
-    }
+    if (messages.length === 0 || showScrollBtn) return;
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
   const handleScroll = () => {
@@ -378,12 +414,6 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={onToggleSidebar}
-              className="lg:hidden p-2 rounded-lg hover:bg-secondary/50 transition-colors"
-            >
-              <Users className="h-5 w-5 text-muted-foreground" />
-            </button>
-            <button
               onClick={handleCopy}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors text-xs font-medium text-muted-foreground hover:text-foreground"
             >
@@ -521,7 +551,7 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
                 </div>
               );
             })}
-            <div ref={messagesEndRef} />
+            <div ref={scrollToBottomOnRender} />
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -544,6 +574,7 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
             </button>
           </div>
         )}
+
       </div>
 
       {/* Message Input */}
@@ -683,14 +714,133 @@ function ChatRoom({ onToggleSidebar }: { onToggleSidebar: () => void }) {
           </div>
         </div>
       </div>
+
+      {/* Floating DM panel — positioned at bubble, draggable via header, follows bubble */}
+      {activeDmUser && panelOffset && (() => {
+        const users = roomUsers.filter((u: any) => u.id !== userId).slice(0, 5);
+        const idx = users.findIndex((u: any) => u.id === activeDmUser.id);
+        const defaultIndex = users.length - 1 - idx;
+        const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
+        const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
+        const bubblePos = bubblePositions[activeDmUser.id] || { x: defaultLeft, y: defaultTop };
+        const pw = 360, ph = 480;
+        const panelX = Math.max(0, Math.min(bubblePos.x + panelOffset.x, typeof window !== 'undefined' ? window.innerWidth - pw : 1200));
+        const panelY = Math.max(0, Math.min(bubblePos.y + panelOffset.y, typeof window !== 'undefined' ? window.innerHeight - ph : 600));
+        return (
+          <div className="fixed z-50" style={{ left: panelX, top: panelY }}>
+            <FloatingDmPanel
+              targetUser={activeDmUser}
+              onClose={() => { setActiveDmUser(null); setPanelOffset(null); }}
+              onDrag={(dx, dy) => {
+                setBubblePositions((prev) => {
+                  const cur = prev[activeDmUser.id] || { x: defaultLeft, y: defaultTop };
+                  return { ...prev, [activeDmUser.id]: { x: cur.x + dx, y: cur.y + dy } };
+                });
+              }}
+            />
+          </div>
+        );
+      })()}
+
+      {/* Floating chat heads — draggable over whole viewport */}
+      {roomUsers.filter((u: any) => u.id !== userId).length > 0 && (
+        <div className="fixed inset-0 pointer-events-none z-40">
+          {roomUsers
+            .filter((u: any) => u.id !== userId)
+            .slice(0, 5)
+            .map((user: any, _i: number, arr: any[]) => {
+              const pos = bubblePositions[user.id];
+              const defaultIndex = arr.length - 1 - arr.indexOf(user);
+              const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
+              const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
+
+              return (
+                <div
+                  key={user.id}
+                  className="absolute pointer-events-auto"
+                  style={{
+                    left: pos ? `${pos.x}px` : `${defaultLeft}px`,
+                    top: pos ? `${pos.y}px` : `${defaultTop}px`,
+                    zIndex: activeDmUser?.id === user.id ? 60 : 40,
+                  }}
+                    onMouseDown={(e) => {
+                    e.preventDefault();
+                    didDragRef.current = false;
+                    const currentPos = bubblePositions[user.id] || { x: defaultLeft, y: defaultTop };
+                    const dragId = user.id;
+                    const startX = e.clientX;
+                    const startY = e.clientY;
+                    draggingRef.current = {
+                      id: dragId,
+                      startX,
+                      startY,
+                      origX: currentPos.x,
+                      origY: currentPos.y,
+                    };
+                    const handleMouseMove = (me: MouseEvent) => {
+                      didDragRef.current = true;
+                      if (!draggingRef.current) return;
+                      const dx = me.clientX - draggingRef.current.startX;
+                      const dy = me.clientY - draggingRef.current.startY;
+                      const { origX, origY } = draggingRef.current;
+                      setBubblePositions((prev) => ({
+                        ...prev,
+                        [dragId]: {
+                          x: origX + dx,
+                          y: origY + dy,
+                        },
+                      }));
+                    };
+                    const handleMouseUp = () => {
+                      draggingRef.current = null;
+                      document.removeEventListener("mousemove", handleMouseMove);
+                      document.removeEventListener("mouseup", handleMouseUp);
+                    };
+                    document.addEventListener("mousemove", handleMouseMove);
+                    document.addEventListener("mouseup", handleMouseUp);
+                  }}
+                >
+                  <button
+                    onClick={() => {
+                      if (!didDragRef.current) {
+                        if (activeDmUser?.id === user.id) {
+                          setActiveDmUser(null);
+                          setPanelOffset(null);
+                        } else {
+                          const bubblePos = bubblePositions[user.id] || { x: defaultLeft, y: defaultTop };
+                          const panelX = bubblePos.x < 400 ? bubblePos.x + 56 : bubblePos.x - 368;
+                          const panelY = Math.max(10, Math.min(bubblePos.y - 24, typeof window !== 'undefined' ? window.innerHeight - 480 : 600));
+                          setPanelOffset({ x: panelX - bubblePos.x, y: panelY - bubblePos.y });
+                          setActiveDmUser(user);
+                        }
+                      }
+                    }}
+                    className={`group relative h-12 w-12 rounded-full border-2 shadow-lg transition-shadow hover:shadow-xl cursor-pointer ${
+                      activeDmUser?.id === user.id
+                        ? "border-purple-500 shadow-purple-500/30"
+                        : "border-border/50 bg-card hover:border-purple-500/50"
+                    }`}
+                  >
+                    <Avatar className="h-full w-full">
+                      <AvatarImage src={user.profile_pic} alt={user.user_name} className="object-cover" />
+                      <AvatarFallback className="text-[10px] bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-purple-300">
+                        {user.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-card border border-border/50 text-xs text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-50">
+                      {user.user_name}
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+        </div>
+      )}
     </div>
   );
 }
 
 export default function AboutPageWrapper() {
-  const messageLength = useParamsStore((state) => state.messageLength);
-  const [showSidebar, setShowSidebar] = useState(false);
-
   return (
     <Suspense
       fallback={
@@ -701,23 +851,8 @@ export default function AboutPageWrapper() {
     >
       <div className="flex h-screen bg-background overflow-hidden">
         <div className="flex-1 flex flex-col min-w-0">
-          <ChatRoom onToggleSidebar={() => setShowSidebar(true)} />
+          <ChatRoom />
         </div>
-
-        {messageLength > 0 && (
-          <div className="hidden lg:block w-[380px] border-l border-border/50">
-            <PersonalChatRoomPage />
-          </div>
-        )}
-
-        {messageLength > 0 && (
-          <Sheet open={showSidebar} onOpenChange={setShowSidebar}>
-            <SheetContent side="right" className="w-[85vw] sm:w-[380px] p-0">
-              <SheetTitle className="sr-only">Direct Messages</SheetTitle>
-              <PersonalChatRoomPage />
-            </SheetContent>
-          </Sheet>
-        )}
       </div>
     </Suspense>
   );
