@@ -174,7 +174,7 @@ export default function IndexPage() {
         <div className="w-full max-w-md animate-fade-in">
           <div className="text-center mb-8">
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
-              <span className="gradient-text">Chat in real-time</span>
+              <span className="text-white">Chat in real-time</span>
             </h2>
             <p className="text-muted-foreground text-sm sm:text-base">Connect with anyone, anywhere.</p>
           </div>
