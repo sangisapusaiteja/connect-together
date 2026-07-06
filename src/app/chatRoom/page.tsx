@@ -58,6 +58,7 @@ function ChatRoom() {
   const [editingBio, setEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState("");
   const [editingProfilePic, setEditingProfilePic] = useState(false);
+  const [showMobileInfo, setShowMobileInfo] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<number, string>>({});
   const typingTimeoutRef = useRef<Record<number, NodeJS.Timeout>>({});
   const typingChannelRef = useRef<any>(null);
@@ -645,7 +646,7 @@ function ChatRoom() {
         <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
-              <a href="/" className="lg:hidden shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
+              <a href="/" className="shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
                 <ArrowLeft className="h-5 w-5 text-muted-foreground" />
               </a>
               <Avatar className="h-10 w-10 shrink-0 border-2 border-ring/30">
@@ -678,7 +679,14 @@ function ChatRoom() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setShowMobileInfo(true)}
+                className="lg:hidden h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
+                title="Room info"
+              >
+                <Users className="h-4 w-4" />
+              </button>
               <button
                 onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 className="h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
@@ -1391,6 +1399,79 @@ function ChatRoom() {
           </div>
         </div>
       </aside>
+
+      {/* Mobile Room Info Drawer */}
+      {showMobileInfo && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowMobileInfo(false)} />
+          <div className="absolute right-0 top-0 bottom-0 w-[85vw] max-w-[360px] bg-card border-l border-border/50 shadow-2xl animate-fade-in flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+              <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">Room Info</h3>
+              <button onClick={() => setShowMobileInfo(false)} className="h-7 w-7 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-5">
+              <div className="relative h-28 rounded-xl overflow-hidden">
+                {groupPhoto ? <img src={groupPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" /> : null}
+                <div className={`absolute inset-0 ${groupPhoto ? "bg-gradient-to-t from-background/90 via-background/40 to-transparent" : "animate-gradient-shift"}`}
+                  style={groupPhoto ? undefined : { background: `linear-gradient(-45deg, ${currentPack.colors[0]}44, ${currentPack.colors[1]}33, ${currentPack.colors[2]}44, ${currentPack.colors[0]}55)`, backgroundSize: "400% 400%" }}
+                />
+                <div className="absolute bottom-3 left-4 flex items-center gap-2.5">
+                  <Avatar className="h-10 w-10 ring-2 ring-background shadow-lg">
+                    {groupPhoto ? <AvatarImage src={groupPhoto} alt="" className="object-cover" /> : <AvatarFallback className="text-sm font-bold accent-avatar-bg">{(roomName || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}</AvatarFallback>}
+                  </Avatar>
+                  <div>
+                    <h2 className="text-sm font-bold text-foreground drop-shadow">{roomName}</h2>
+                    <p className="text-[10px] text-muted-foreground/90">{roomUsers.length} member{roomUsers.length !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
+              </div>
+              {description && <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>}
+              <div className="flex items-center gap-2 bg-secondary/30 rounded-xl p-3 border border-border/30">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[8px] font-semibold text-muted-foreground uppercase tracking-widest mb-1">Invite Code</p>
+                  <code className="text-sm font-mono text-foreground tracking-wider">{roomCode}</code>
+                </div>
+                <button onClick={handleCopy} className="shrink-0 h-8 w-8 rounded-lg bg-background/70 border border-border/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all">
+                  {copyMessage ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+              <div>
+                <h4 className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                  <Users className="h-3 w-3" />
+                  Members ({roomUsers.length})
+                </h4>
+                <div className="space-y-1">
+                  {roomUsers.map((u: any) => (
+                    <div key={u.id} className="flex items-center gap-2.5 p-2 rounded-xl hover:bg-secondary/30 transition-all">
+                      <div className="relative shrink-0">
+                        <Avatar className="h-8 w-8 ring-2 ring-border/50">
+                          <AvatarImage src={u.profile_pic} alt={u.user_name} className="object-cover" />
+                          <AvatarFallback className="text-[9px] accent-avatar-bg">{getInitials(u.user_name || "?")}</AvatarFallback>
+                        </Avatar>
+                        <span className={`absolute -bottom-0.5 -right-0.5 h-2 w-2 rounded-full ring-2 ring-card ${u.is_online ? "bg-emerald-400" : "bg-muted-foreground/40"}`} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground truncate">{u.user_name}</p>
+                        <p className="text-[9px] text-muted-foreground/60">{u.is_online ? "Online" : "Offline"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Theme</h4>
+                <div className="flex gap-1.5">
+                  {ACCENT_PACKS.map((pack) => (
+                    <button key={pack.id} onClick={() => setAccentPack(pack.id)} className={`h-5 w-5 rounded-full border-2 transition-all ${accentPack === pack.id ? "border-ring scale-110" : "border-border/40"}`} style={{ background: `linear-gradient(135deg, ${pack.colors[0]}, ${pack.colors[2]})` }} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating DM panel */}
       {activeDmUser && (() => {
