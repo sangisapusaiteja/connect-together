@@ -12,7 +12,7 @@ import { useSearchParams } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
 import {
   Copy, Check, Send, MessageCircle, ArrowLeft,
-  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon, Users, Palette, Share2, Mail, MessageSquare
+  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon, Users, Palette, Share2, Mail, MessageSquare, Camera, Edit3, CheckCheck
 } from "lucide-react";
 
 const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
@@ -48,6 +48,19 @@ function ChatRoom() {
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
   const [roomUsers, setRoomUsers] = useState<any[]>([]);
   const [activeDmUser, setActiveDmUser] = useState<{ id: number; user_name: string; profile_pic?: string } | null>(null);
+  const [creatorId, setCreatorId] = useState<number | null>(null);
+  const [groupPhoto, setGroupPhoto] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
+  const [editingDescription, setEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [myBio, setMyBio] = useState("");
+  const [editingBio, setEditingBio] = useState(false);
+  const [bioDraft, setBioDraft] = useState("");
+  const [editingProfilePic, setEditingProfilePic] = useState(false);
+  const [typingUsers, setTypingUsers] = useState<Record<number, string>>({});
+  const typingTimeoutRef = useRef<Record<number, NodeJS.Timeout>>({});
+  const typingChannelRef = useRef<any>(null);
   const secretKey = "key";
 
   const searchParams = useSearchParams();
@@ -105,10 +118,7 @@ function ChatRoom() {
   const messagesContainerRef = useRef<null | HTMLDivElement>(null);
   const emojiPickerRef = useRef<null | HTMLDivElement>(null);
   const fileInputRef = useRef<null | HTMLInputElement>(null);
-  const [bubblePositions, setBubblePositions] = useState<Record<number, { x: number; y: number }>>({});
-  const [panelOffset, setPanelOffset] = useState<{ x: number; y: number } | null>(null);
-  const draggingRef = useRef<{ id: number; startX: number; startY: number; origX: number; origY: number } | null>(null);
-  const didDragRef = useRef(false);
+  const [dmPanelPos, setDmPanelPos] = useState<{ x: number; y: number } | null>(null);
   const initialScrollDone = useRef(false);
   const scrollToBottomOnRender = useCallback((el: HTMLDivElement | null) => {
     messagesEndRef.current = el;
@@ -206,7 +216,7 @@ function ChatRoom() {
     const fetchUsers = async () => {
       const { data, error } = await supabaseBrowserClient
         .from("messages")
-        .select("user_id(id, user_name, profile_pic)")
+        .select("user_id(id, user_name, profile_pic, bio, is_online, last_seen)")
         .eq("room_id", roomId);
       if (!error && data) {
         const unique = Array.from(
@@ -222,6 +232,179 @@ function ChatRoom() {
       .subscribe();
     return () => { supabaseBrowserClient.removeChannel(sub); };
   }, [roomId]);
+
+  // Online status — set online on mount, heartbeat every 30s, offline on unmount
+  useEffect(() => {
+    if (!userId || !roomId) return;
+    const setOnline = async (online: boolean) => {
+      try {
+        await supabaseBrowserClient
+          .from("users")
+          .update({ is_online: online, last_seen: new Date().toISOString() })
+          .eq("id", userId);
+      } catch (e) {
+        console.error("Failed to update online status:", e);
+      }
+    };
+    setOnline(true);
+    const interval = setInterval(() => setOnline(true), 30000);
+    const handleBeforeUnload = () => {
+      const key = process.env.NEXT_PUBLIC_SUPABASE_KEY || "";
+      fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/users?id=eq.${userId}`,
+        {
+          method: "PATCH",
+          keepalive: true,
+          headers: {
+            "Content-Type": "application/json",
+            apikey: key,
+            Authorization: `Bearer ${key}`,
+          },
+          body: JSON.stringify({ is_online: false, last_seen: new Date().toISOString() }),
+        }
+      );
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      setOnline(false);
+    };
+  }, [userId, roomId]);
+
+  // Realtime subscription for online status changes + periodic fallback
+  useEffect(() => {
+    if (!roomId) return;
+    const channel = supabaseBrowserClient
+      .channel(`online-status:${roomId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "users", filter: `room_id=eq.${roomId}` },
+        (payload) => {
+          const updated = payload.new as any;
+          setRoomUsers((prev) =>
+            prev.map((u: any) =>
+              u.id === updated.id
+                ? { ...u, is_online: updated.is_online, last_seen: updated.last_seen }
+                : u
+            )
+          );
+        }
+      )
+      .subscribe((status) => {
+        if (status !== "SUBSCRIBED") {
+          console.warn("Online status channel status:", status);
+        }
+      });
+    // Fallback: refresh online status every 15s in case realtime isn't enabled
+    const fallbackInterval = setInterval(async () => {
+      const { data } = await supabaseBrowserClient
+        .from("users")
+        .select("id, is_online, last_seen")
+        .eq("room_id", roomId);
+      if (data) {
+        setRoomUsers((prev) =>
+          prev.map((u: any) => {
+            const match = data.find((d: any) => d.id === u.id);
+            return match ? { ...u, is_online: match.is_online, last_seen: match.last_seen } : u;
+          })
+        );
+      }
+    }, 15000);
+    return () => {
+      supabaseBrowserClient.removeChannel(channel);
+      clearInterval(fallbackInterval);
+    };
+  }, [roomId]);
+
+  // Typing indicator — broadcast + subscribe
+  useEffect(() => {
+    if (!roomId || !userId) return;
+    const channel = supabaseBrowserClient.channel(`typing:${roomId}`);
+    channel
+      .on("broadcast", { event: "typing" }, (payload) => {
+        const { userId: typerId, userName } = payload.payload;
+        if (typerId === userId) return;
+        setTypingUsers((prev) => ({ ...prev, [typerId]: userName }));
+        if (typingTimeoutRef.current[typerId]) clearTimeout(typingTimeoutRef.current[typerId]);
+        typingTimeoutRef.current[typerId] = setTimeout(() => {
+          setTypingUsers((prev) => {
+            const next = { ...prev };
+            delete next[typerId];
+            return next;
+          });
+          delete typingTimeoutRef.current[typerId];
+        }, 3000);
+      })
+      .subscribe();
+    typingChannelRef.current = channel;
+    return () => {
+      supabaseBrowserClient.removeChannel(channel);
+      Object.values(typingTimeoutRef.current).forEach(clearTimeout);
+      typingTimeoutRef.current = {};
+    };
+  }, [roomId, userId]);
+
+  const broadcastTyping = useCallback(() => {
+    if (!typingChannelRef.current || !userId) return;
+    const myName = roomUsers.find((u: any) => u.id === userId)?.user_name || "Someone";
+    typingChannelRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { userId, userName: myName },
+    });
+  }, [userId, roomUsers]);
+
+  useEffect(() => {
+    if (roomId === null) return;
+    supabaseBrowserClient
+      .from("rooms")
+      .select("created_by, group_photo, description")
+      .eq("id", roomId)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          if (data.created_by) setCreatorId(data.created_by);
+          if (data.group_photo) setGroupPhoto(data.group_photo);
+          if (data.description) setDescription(data.description);
+        }
+      });
+  }, [roomId]);
+
+  const handleSaveDescription = async () => {
+    if (!roomId || !descriptionDraft.trim()) return;
+    const { error } = await supabaseBrowserClient
+      .from("rooms")
+      .update({ description: descriptionDraft.trim() })
+      .eq("id", roomId);
+    if (!error) {
+      setDescription(descriptionDraft.trim());
+      setEditingDescription(false);
+    }
+  };
+
+  const handleGroupPhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !roomId) return;
+    setUploadingPhoto(true);
+    const filePath = `group-photos/${roomId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabaseBrowserClient.storage
+      .from("avatars")
+      .upload(filePath, file);
+    if (uploadError) { setUploadingPhoto(false); return; }
+    const { data: urlData } = supabaseBrowserClient.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+    const publicUrl = urlData?.publicUrl;
+    if (publicUrl) {
+      const { error: updateError } = await supabaseBrowserClient
+        .from("rooms")
+        .update({ group_photo: publicUrl })
+        .eq("id", roomId);
+      if (!updateError) setGroupPhoto(publicUrl);
+    }
+    setUploadingPhoto(false);
+  };
 
   const handleSendMessage = async () => {
     if (!roomId || !newMessage.trim() || !userId) return;
@@ -323,27 +506,65 @@ function ChatRoom() {
     }
   };
 
-  const [profilePic, setProfilePic] = useState(null);
+  const [profilePic, setProfilePic] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchProfilePic = async () => {
+    const fetchProfile = async () => {
       try {
         const { data, error } = await supabaseBrowserClient
           .from("users")
-          .select("profile_pic")
+          .select("profile_pic, bio")
           .eq("id", userId)
           .single();
         if (error) {
-          console.log("Error fetching profile picture:", error);
+          console.log("Error fetching profile:", error);
           return;
         }
-        if (data) setProfilePic(data.profile_pic);
+        if (data) {
+          setProfilePic(data.profile_pic);
+          if (data.bio) setMyBio(data.bio);
+        }
       } catch (err) {
-        console.error("Error fetching profile picture:", err);
+        console.error("Error fetching profile:", err);
       }
     };
-    if (userId) fetchProfilePic();
+    if (userId) fetchProfile();
   }, [userId]);
+
+  const handleSaveBio = async () => {
+    if (!userId || !bioDraft.trim()) return;
+    const { error } = await supabaseBrowserClient
+      .from("users")
+      .update({ bio: bioDraft.trim() })
+      .eq("id", userId);
+    if (!error) {
+      setMyBio(bioDraft.trim());
+      setEditingBio(false);
+    }
+  };
+
+  const handleProfilePicUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    setEditingProfilePic(true);
+    const filePath = `profile-pics/${userId}/${Date.now()}-${file.name}`;
+    const { error: uploadError } = await supabaseBrowserClient.storage
+      .from("avatars")
+      .upload(filePath, file);
+    if (uploadError) { setEditingProfilePic(false); return; }
+    const { data: urlData } = supabaseBrowserClient.storage
+      .from("avatars")
+      .getPublicUrl(filePath);
+    const publicUrl = urlData?.publicUrl;
+    if (publicUrl) {
+      const { error: updateError } = await supabaseBrowserClient
+        .from("users")
+        .update({ profile_pic: publicUrl })
+        .eq("id", userId);
+      if (!updateError) setProfilePic(publicUrl);
+    }
+    setEditingProfilePic(false);
+  };
 
   const [isLoading, setIsLoading] = useState(true);
 
@@ -438,10 +659,22 @@ function ChatRoom() {
               </Avatar>
               <div className="min-w-0">
                 <h2 className="text-sm font-semibold text-foreground truncate">{roomName}</h2>
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
-                  Active now
-                </p>
+                {Object.keys(typingUsers).length > 0 ? (
+                  <p className="text-xs text-muted-foreground/70 animate-fade-in">
+                    <span className="text-ring">{Object.values(typingUsers).join(", ")}</span>
+                    {Object.keys(typingUsers).length === 1 ? " is typing" : " are typing"}
+                    <span className="inline-flex ml-0.5">
+                      <span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span>
+                      <span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span>
+                      <span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span>
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                    Active now
+                  </p>
+                )}
               </div>
             </div>
 
@@ -734,7 +967,10 @@ function ChatRoom() {
             <Input
               type="text"
               value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
+              onChange={(e) => {
+                setNewMessage(e.target.value);
+                broadcastTyping();
+              }}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
@@ -775,9 +1011,12 @@ function ChatRoom() {
       <aside className="hidden lg:flex w-[360px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
         {/* Animated Banner */}
         <div className="relative shrink-0 h-36 overflow-hidden">
+          {groupPhoto ? (
+            <img src={groupPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          ) : null}
           <div
-            className="absolute inset-0 animate-gradient-shift"
-            style={{
+            className={`absolute inset-0 ${groupPhoto ? "bg-gradient-to-t from-background/90 via-background/40 to-transparent" : "animate-gradient-shift"}`}
+            style={groupPhoto ? undefined : {
               background: `linear-gradient(-45deg, ${currentPack.colors[0]}44, ${currentPack.colors[1]}33, ${currentPack.colors[2]}44, ${currentPack.colors[0]}55)`,
               backgroundSize: "400% 400%",
             }}
@@ -785,12 +1024,34 @@ function ChatRoom() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,transparent_20%,hsl(var(--background))_80%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,transparent_40%,hsl(var(--background))_70%)]" />
           <div className="absolute bottom-4 left-5 flex items-center gap-3">
-            <div className="relative">
+            <div className="relative group/photo">
               <Avatar className="h-14 w-14 ring-[3px] ring-background shadow-2xl">
-                <AvatarFallback className="text-lg font-bold accent-avatar-bg shadow-inner">
-                  {(roomName || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
-                </AvatarFallback>
+                {groupPhoto ? (
+                  <AvatarImage src={groupPhoto} alt={roomName || ""} className="object-cover" />
+                ) : (
+                  <AvatarFallback className="text-lg font-bold accent-avatar-bg shadow-inner">
+                    {(roomName || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
+                  </AvatarFallback>
+                )}
               </Avatar>
+              {userId === creatorId && (
+                <>
+                  <button
+                    onClick={() => document.getElementById("group-photo-input")?.click()}
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                    title="Change group photo"
+                  >
+                    <Camera className="h-5 w-5 text-white" />
+                  </button>
+                  <input
+                    id="group-photo-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleGroupPhotoUpload}
+                  />
+                </>
+              )}
               <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-[3px] ring-background animate-pulse-dot" />
             </div>
             <div className="space-y-0.5">
@@ -804,6 +1065,142 @@ function ChatRoom() {
         </div>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-5">
+          {/* Description */}
+          <div className="group/desc">
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">About</p>
+              {userId === creatorId && !editingDescription && (
+                <button
+                  onClick={() => { setDescriptionDraft(description); setEditingDescription(true); }}
+                  className="h-5 w-5 rounded opacity-0 group-hover/desc:opacity-100 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
+                >
+                  <Edit3 className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            {editingDescription ? (
+              <div className="flex items-start gap-2">
+                <textarea
+                  value={descriptionDraft}
+                  onChange={(e) => setDescriptionDraft(e.target.value)}
+                  className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-3 py-2 text-xs text-foreground resize-none focus:outline-none focus:border-ring/50 h-20"
+                  placeholder="Add a description..."
+                  autoFocus
+                />
+                <div className="flex flex-col gap-1">
+                  <button
+                    onClick={handleSaveDescription}
+                    className="h-7 w-7 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all"
+                  >
+                    <CheckCheck className="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setEditingDescription(false)}
+                    className="h-7 w-7 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            ) : description ? (
+              <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+            ) : userId === creatorId ? (
+              <button
+                onClick={() => { setDescriptionDraft(""); setEditingDescription(true); }}
+                className="text-xs text-muted-foreground/50 italic hover:text-muted-foreground transition-colors"
+              >
+                Add a description...
+              </button>
+            ) : null}
+          </div>
+
+          {/* My Profile */}
+          <div className="group/profile">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">My Profile</p>
+            </div>
+            <div className="glass rounded-xl p-3.5 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative group/pp">
+                  <Avatar className="h-12 w-12 ring-2 ring-border/50">
+                    {profilePic ? (
+                      <AvatarImage src={profilePic} alt="" className="object-cover" />
+                    ) : (
+                      <AvatarFallback className="text-sm font-bold accent-avatar-bg">
+                        {roomUsers.find((u: any) => u.id === userId)?.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                      </AvatarFallback>
+                    )}
+                  </Avatar>
+                  <button
+                    onClick={() => document.getElementById("profile-pic-input")?.click()}
+                    className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover/pp:opacity-100 transition-opacity"
+                    title="Change photo"
+                  >
+                    <Camera className="h-4 w-4 text-white" />
+                  </button>
+                  <input
+                    id="profile-pic-input"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleProfilePicUpload}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">
+                    {roomUsers.find((u: any) => u.id === userId)?.user_name || "You"}
+                  </p>
+                  <p className="text-[10px] flex items-center gap-1">
+                    <span className={`h-1 w-1 rounded-full ${true ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+                    Online now
+                  </p>
+                </div>
+              </div>
+
+              {/* Bio */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Bio</p>
+                  {!editingBio && (
+                    <button
+                      onClick={() => { setBioDraft(myBio); setEditingBio(true); }}
+                      className="h-4 w-4 rounded opacity-0 group-hover/profile:opacity-100 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
+                    >
+                      <Edit3 className="h-2.5 w-2.5" />
+                    </button>
+                  )}
+                </div>
+                {editingBio ? (
+                  <div className="flex items-start gap-1.5">
+                    <input
+                      value={bioDraft}
+                      onChange={(e) => setBioDraft(e.target.value)}
+                      className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-ring/50"
+                      placeholder="Write something about yourself..."
+                      autoFocus
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSaveBio(); } }}
+                    />
+                    <button onClick={handleSaveBio} className="h-7 w-7 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all shrink-0">
+                      <CheckCheck className="h-3 w-3" />
+                    </button>
+                    <button onClick={() => setEditingBio(false)} className="h-7 w-7 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ) : myBio ? (
+                  <p className="text-xs text-muted-foreground leading-relaxed">{myBio}</p>
+                ) : (
+                  <button
+                    onClick={() => { setBioDraft(""); setEditingBio(true); }}
+                    className="text-xs text-muted-foreground/50 italic hover:text-muted-foreground transition-colors"
+                  >
+                    Add a bio...
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Room Code — quick copy */}
           <div className="group relative">
             <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-500"
@@ -836,7 +1233,8 @@ function ChatRoom() {
             </div>
             <div className="grid grid-cols-3 gap-2">
               {(() => {
-                const rawShare = `Join me on ConnectTogether!\n\nRoom: ${roomName}\nCode: ${roomCode}\n\nConnect with anyone, anywhere.`;
+                const descLine = description ? `\n"${description}"\n` : "\n";
+                const rawShare = `Join me on ConnectTogether!${descLine}Room: ${roomName}\nCode: ${roomCode}\n\nConnect with anyone, anywhere.`;
                 const shareUrl = typeof window !== "undefined" ? window.location.origin : "";
                 const fullShare = `${rawShare}\n${shareUrl}`;
                 return (
@@ -916,16 +1314,6 @@ function ChatRoom() {
                     className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/30 transition-all group cursor-pointer"
                     onClick={() => {
                       if (!isSelf) {
-                        const bubblePos = bubblePositions[u.id];
-                        const others = roomUsers.filter((x: any) => x.id !== userId);
-                        const idx = others.indexOf(u);
-                        const defaultIndex = others.length - 1 - idx;
-                        const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
-                        const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
-                        const bp = bubblePos || { x: defaultLeft, y: defaultTop };
-                        const panelX = bp.x < 400 ? bp.x + 56 : bp.x - 368;
-                        const panelY = Math.max(10, Math.min(bp.y - 24, typeof window !== 'undefined' ? window.innerHeight - 480 : 600));
-                        setPanelOffset({ x: panelX - bp.x, y: panelY - bp.y });
                         setActiveDmUser(u);
                       }
                     }}
@@ -937,34 +1325,32 @@ function ChatRoom() {
                           {getInitials(u.user_name || "?")}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 ring-2 ring-card animate-pulse-dot" />
+                      <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card ${u.is_online ? "bg-emerald-400 animate-pulse-dot" : "bg-muted-foreground/40"}`} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <p className="text-sm font-medium text-foreground truncate">{u.user_name}</p>
-                        {isSelf && (
+                        {u.id === creatorId && (
+                          <span className="text-[8px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">creator</span>
+                        )}
+                        {isSelf && u.id !== creatorId && (
                           <span className="text-[8px] font-semibold text-muted-foreground bg-secondary/60 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">you</span>
                         )}
                       </div>
-                      <p className="text-[10px] text-emerald-400/80 flex items-center gap-1">
-                        <span className="h-1 w-1 rounded-full bg-emerald-400" />
-                        Online now
+                      <p className={`text-[10px] flex items-center gap-1 ${u.is_online ? "text-emerald-400/80" : "text-muted-foreground/60"}`}>
+                        <span className={`h-1 w-1 rounded-full ${u.is_online ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+                        {typingUsers[u.id] ? (
+                          <span className="text-ring animate-fade-in">typing<span className="inline-flex ml-0.5"><span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span><span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span><span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span></span></span>
+                        ) : u.is_online ? "Online now" : "Offline"}
                       </p>
+                      {u.bio && (
+                        <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5 leading-tight">{u.bio}</p>
+                      )}
                     </div>
                     {!isSelf && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          const bubblePos = bubblePositions[u.id];
-                          const others = roomUsers.filter((x: any) => x.id !== userId);
-                          const idx = others.indexOf(u);
-                          const defaultIndex = others.length - 1 - idx;
-                          const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
-                          const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
-                          const bp = bubblePos || { x: defaultLeft, y: defaultTop };
-                          const panelX = bp.x < 400 ? bp.x + 56 : bp.x - 368;
-                          const panelY = Math.max(10, Math.min(bp.y - 24, typeof window !== 'undefined' ? window.innerHeight - 480 : 600));
-                          setPanelOffset({ x: panelX - bp.x, y: panelY - bp.y });
                           setActiveDmUser(u);
                         }}
                         className="shrink-0 h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 bg-background/80 border border-border/30 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 hover:bg-ring/10 transition-all active:scale-90"
@@ -984,169 +1370,46 @@ function ChatRoom() {
 
           {/* Theme Packs */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
-                <Palette className="h-3.5 w-3.5 text-muted-foreground" />
-                Theme
-              </h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">Theme</h4>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="flex gap-1.5">
               {ACCENT_PACKS.map((pack) => (
                 <button
                   key={pack.id}
                   onClick={() => setAccentPack(pack.id)}
-                  className={`relative p-2 rounded-xl border transition-all duration-200 active:scale-95 ${
+                  className={`h-6 w-6 rounded-full border-2 transition-all active:scale-90 ${
                     accentPack === pack.id
-                      ? "border-ring/60 bg-secondary/40 shadow-sm shadow-ring/10"
-                      : "border-border/30 bg-background/40 hover:bg-secondary/20 hover:border-border/60"
+                      ? "border-ring scale-110 shadow-sm shadow-ring/20"
+                      : "border-border/40 hover:border-border/70"
                   }`}
                   title={pack.name}
-                >
-                  <div
-                    className={`h-7 w-full rounded-lg mb-1.5 bg-gradient-to-r ${pack.gradient} ${
-                      accentPack === pack.id ? "shadow-sm shadow-ring/20" : ""
-                    }`}
-                  />
-                  <p className={`text-[10px] font-medium leading-tight ${
-                    accentPack === pack.id ? "text-foreground" : "text-muted-foreground"
-                  }`}>
-                    {pack.name}
-                  </p>
-                  {accentPack === pack.id && (
-                    <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-ring border-2 border-card shadow-sm" />
-                  )}
-                </button>
+                  style={{ background: `linear-gradient(135deg, ${pack.colors[0]}, ${pack.colors[2]})` }}
+                />
               ))}
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Floating DM panel — positioned at bubble, draggable via header, follows bubble */}
-      {activeDmUser && panelOffset && (() => {
-        const users = roomUsers.filter((u: any) => u.id !== userId).slice(0, 5);
-        const idx = users.findIndex((u: any) => u.id === activeDmUser.id);
-        const defaultIndex = users.length - 1 - idx;
-        const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
-        const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
-        const bubblePos = bubblePositions[activeDmUser.id] || { x: defaultLeft, y: defaultTop };
-        const pw = 360, ph = 480;
-        const panelX = Math.max(0, Math.min(bubblePos.x + panelOffset.x, typeof window !== 'undefined' ? window.innerWidth - pw : 1200));
-        const panelY = Math.max(0, Math.min(bubblePos.y + panelOffset.y, typeof window !== 'undefined' ? window.innerHeight - ph : 600));
+      {/* Floating DM panel */}
+      {activeDmUser && (() => {
+        const pos = dmPanelPos || { x: typeof window !== 'undefined' ? Math.max(20, window.innerWidth - 400) : 800, y: typeof window !== 'undefined' ? Math.max(20, window.innerHeight - 520) : 200 };
         return (
-          <div className="fixed z-50" style={{ left: panelX, top: panelY }}>
+          <div className="fixed z-50" style={{ left: pos.x, top: pos.y }}>
             <FloatingDmPanel
               targetUser={activeDmUser}
-              onClose={() => { setActiveDmUser(null); setPanelOffset(null); }}
+              onClose={() => { setActiveDmUser(null); setDmPanelPos(null); }}
               onDrag={(dx, dy) => {
-                setBubblePositions((prev) => {
-                  const cur = prev[activeDmUser.id] || { x: defaultLeft, y: defaultTop };
-                  return { ...prev, [activeDmUser.id]: { x: cur.x + dx, y: cur.y + dy } };
-                });
+                setDmPanelPos((prev) => ({
+                  x: (prev?.x || pos.x) + dx,
+                  y: (prev?.y || pos.y) + dy,
+                }));
               }}
             />
           </div>
         );
       })()}
-
-      {/* Floating chat heads — draggable over whole viewport */}
-      {roomUsers.filter((u: any) => u.id !== userId).length > 0 && (
-        <div className="fixed inset-0 pointer-events-none z-40">
-          {roomUsers
-            .filter((u: any) => u.id !== userId)
-            .slice(0, 5)
-            .map((user: any, _i: number, arr: any[]) => {
-              const pos = bubblePositions[user.id];
-              const defaultIndex = arr.length - 1 - arr.indexOf(user);
-              const defaultLeft = typeof window !== 'undefined' ? window.innerWidth - 80 + defaultIndex * 4 : 1200;
-              const defaultTop = typeof window !== 'undefined' ? window.innerHeight - 80 + defaultIndex * 4 : 600;
-
-              return (
-                <div
-                  key={user.id}
-                  className="absolute pointer-events-auto"
-                  style={{
-                    left: pos ? `${pos.x}px` : `${defaultLeft}px`,
-                    top: pos ? `${pos.y}px` : `${defaultTop}px`,
-                    zIndex: activeDmUser?.id === user.id ? 60 : 40,
-                  }}
-                    onMouseDown={(e) => {
-                    e.preventDefault();
-                    didDragRef.current = false;
-                    const currentPos = bubblePositions[user.id] || { x: defaultLeft, y: defaultTop };
-                    const dragId = user.id;
-                    const startX = e.clientX;
-                    const startY = e.clientY;
-                    draggingRef.current = {
-                      id: dragId,
-                      startX,
-                      startY,
-                      origX: currentPos.x,
-                      origY: currentPos.y,
-                    };
-                    const handleMouseMove = (me: MouseEvent) => {
-                      didDragRef.current = true;
-                      if (!draggingRef.current) return;
-                      const dx = me.clientX - draggingRef.current.startX;
-                      const dy = me.clientY - draggingRef.current.startY;
-                      const { origX, origY } = draggingRef.current;
-                      setBubblePositions((prev) => ({
-                        ...prev,
-                        [dragId]: {
-                          x: origX + dx,
-                          y: origY + dy,
-                        },
-                      }));
-                    };
-                    const handleMouseUp = () => {
-                      draggingRef.current = null;
-                      document.removeEventListener("mousemove", handleMouseMove);
-                      document.removeEventListener("mouseup", handleMouseUp);
-                    };
-                    document.addEventListener("mousemove", handleMouseMove);
-                    document.addEventListener("mouseup", handleMouseUp);
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      if (!didDragRef.current) {
-                        if (activeDmUser?.id === user.id) {
-                          setActiveDmUser(null);
-                          setPanelOffset(null);
-                        } else {
-                          const bubblePos = bubblePositions[user.id] || { x: defaultLeft, y: defaultTop };
-                          const panelX = bubblePos.x < 400 ? bubblePos.x + 56 : bubblePos.x - 368;
-                          const panelY = Math.max(10, Math.min(bubblePos.y - 24, typeof window !== 'undefined' ? window.innerHeight - 480 : 600));
-                          setPanelOffset({ x: panelX - bubblePos.x, y: panelY - bubblePos.y });
-                          setActiveDmUser(user);
-                        }
-                      }
-                    }}
-                    className={`group relative h-12 w-12 rounded-full shadow-lg transition-shadow hover:shadow-xl cursor-pointer ${
-                      activeDmUser?.id === user.id
-                        ? "bg-card"
-                        : "border-2 border-border/50 bg-card hover:border-ring/50"
-                    }`}
-                    style={activeDmUser?.id === user.id ? {
-                      border: `2px solid ${currentPack.colors[0]}`,
-                      boxShadow: `0 10px 15px -3px ${currentPack.colors[0]}40`,
-                    } : undefined}
-                  >
-                    <Avatar className="h-full w-full">
-                      <AvatarImage src={user.profile_pic} alt={user.user_name} className="object-cover" />
-                      <AvatarFallback className="text-[10px] bg-gradient-to-br accent-avatar-bg">
-                        {user.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="absolute right-full mr-3 top-1/2 -translate-y-1/2 px-2 py-1 rounded-lg bg-card border border-border/50 text-xs text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none shadow-lg z-50">
-                      {user.user_name}
-                    </span>
-                  </button>
-                </div>
-              );
-            })}
-        </div>
-      )}
     </div>
   );
 }

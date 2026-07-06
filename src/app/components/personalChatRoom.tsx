@@ -28,10 +28,12 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [emojiTab, setEmojiTab] = useState(0);
   const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
+  const [panelSize, setPanelSize] = useState({ w: 360, h: 480 });
   const bottomRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
   const headerDragRef = useRef<{ startX: number; startY: number } | null>(null);
   const didDragHeader = useRef(false);
+  const resizingRef = useRef(false);
 
   const secretKey = "key";
   const searchParams = useSearchParams();
@@ -136,9 +138,12 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
   const initials = targetUser.user_name?.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) || "?";
 
   return (
-    <div className="w-[320px] sm:w-[360px] rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/30 animate-fade-in overflow-hidden flex flex-col">
+    <div
+      className="relative rounded-2xl border border-border/50 bg-card/95 backdrop-blur-xl shadow-2xl shadow-black/30 animate-fade-in overflow-hidden flex flex-col"
+      style={{ width: panelSize.w, height: panelSize.h }}
+    >
       <div
-        className="flex items-center justify-between px-3 py-2.5 border-b border-border/30 bg-card cursor-grab active:cursor-grabbing select-none"
+        className="flex items-center justify-between px-3 py-2.5 border-b border-border/30 bg-card cursor-grab active:cursor-grabbing select-none shrink-0"
         onMouseDown={(e) => {
           if (!onDrag) return;
           e.preventDefault();
@@ -178,7 +183,7 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
         </button>
       </div>
 
-      <div className="max-h-[320px] min-h-[160px] overflow-y-auto custom-scrollbar p-3 space-y-1.5">
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-1.5 min-h-[100px]">
         {messageData.length > 0 ? (
           messageData.map((message: any) => {
             const isMine = message.from_id === userId;
@@ -203,7 +208,7 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-border/30 p-2 flex items-center gap-1.5">
+      <div className="border-t border-border/30 p-2 flex items-center gap-1.5 shrink-0">
         <div className="relative">
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -258,6 +263,38 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
         >
           <Send className="h-3 w-3" />
         </button>
+      </div>
+
+      {/* Resize handle */}
+      <div
+        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          resizingRef.current = true;
+          const startX = e.clientX;
+          const startY = e.clientY;
+          const startW = panelSize.w;
+          const startH = panelSize.h;
+          const handleMouseMove = (me: MouseEvent) => {
+            if (!resizingRef.current) return;
+            setPanelSize({
+              w: Math.max(240, startW + (me.clientX - startX)),
+              h: Math.max(200, startH + (me.clientY - startY)),
+            });
+          };
+          const handleMouseUp = () => {
+            resizingRef.current = false;
+            document.removeEventListener("mousemove", handleMouseMove);
+            document.removeEventListener("mouseup", handleMouseUp);
+          };
+          document.addEventListener("mousemove", handleMouseMove);
+          document.addEventListener("mouseup", handleMouseUp);
+        }}
+      >
+        <svg className="absolute bottom-1 right-1 text-muted-foreground/40" width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M1 9L9 1M4 9L9 4M7 9L9 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
       </div>
     </div>
   );

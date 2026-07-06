@@ -127,6 +127,11 @@ export default function IndexPage() {
         setError(insertError.message);
       } else {
         const userId = insertedData[0].id;
+        await supabaseBrowserClient
+          .from("rooms")
+          .update({ created_by: userId })
+          .eq("id", data.id)
+          .is("created_by", null);
         const roomId = data.id;
         const roomName = data.room_name;
         const roomCode = data.room_code;
