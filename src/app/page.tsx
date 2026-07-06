@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@*/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@*/components/ui/card";
 import { Separator } from "@*/components/ui/separator";
 import { Badge } from "@*/components/ui/badge";
@@ -22,6 +23,8 @@ export default function IndexPage() {
   const [loginUsername, setLoginUsername] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [userGroups, setUserGroups] = useState<any[]>([]);
+  const [showGroupPicker, setShowGroupPicker] = useState(false);
 
   // Join Room
   const [roomCode, setRoomCode] = useState("");
@@ -69,23 +72,44 @@ export default function IndexPage() {
     const { data: existing } = await supabaseBrowserClient.from("users").select("id").eq("username", loginUsername.trim()).maybeSingle();
     if (!existing) { setLoginError("Username not found. Join a room first."); setLoginLoading(false); return; }
     try { localStorage.setItem("last-username", loginUsername.trim()); } catch {}
-    // Redirect to first group's chat room
+    // Fetch all groups for this user
     const { data: entries } = await supabaseBrowserClient
       .from("users")
-      .select("id, room_id, rooms!users_room_id_fkey(room_name, room_code)")
-      .eq("username", loginUsername.trim())
-      .limit(1)
-      .single();
-    if (entries) {
-      const room = Array.isArray(entries.rooms) ? entries.rooms[0] : entries.rooms;
-      const encryptedRoomId = CryptoJS.AES.encrypt(String(entries.room_id), secretKey).toString();
-      const encryptedUserId = CryptoJS.AES.encrypt(String(entries.id), secretKey).toString();
-      const encryptedRoomName = CryptoJS.AES.encrypt(room.room_name, secretKey).toString();
-      const encryptedRoomCode = CryptoJS.AES.encrypt(room.room_code, secretKey).toString();
-      router.push(`/chatRoom?roomId=${encodeURIComponent(encryptedRoomId)}&userId=${encodeURIComponent(encryptedUserId)}&roomName=${encodeURIComponent(encryptedRoomName)}&roomCode=${encodeURIComponent(encryptedRoomCode)}`);
+      .select("id, room_id, user_name, rooms!users_room_id_fkey(id, room_name, room_code, group_photo)")
+      .eq("username", loginUsername.trim());
+    if (entries && entries.length > 0) {
+      const withCounts = await Promise.all(
+        entries.map(async (e: any) => {
+          const { count } = await supabaseBrowserClient.from("users").select("id", { count: "exact", head: true }).eq("room_id", e.room_id);
+          return { ...e, memberCount: count || 0 };
+        })
+      );
+      setUserGroups(withCounts);
+      if (withCounts.length === 1) {
+        // Only one group — redirect directly
+        const e = withCounts[0];
+        const encryptedRoomId = CryptoJS.AES.encrypt(String(e.room_id), secretKey).toString();
+        const encryptedUserId = CryptoJS.AES.encrypt(String(e.id), secretKey).toString();
+        const encryptedRoomName = CryptoJS.AES.encrypt(e.rooms.room_name, secretKey).toString();
+        const encryptedRoomCode = CryptoJS.AES.encrypt(e.rooms.room_code, secretKey).toString();
+        router.push(`/chatRoom?roomId=${encodeURIComponent(encryptedRoomId)}&userId=${encodeURIComponent(encryptedUserId)}&roomName=${encodeURIComponent(encryptedRoomName)}&roomCode=${encodeURIComponent(encryptedRoomCode)}`);
+      } else {
+        // Multiple groups — show picker
+        setShowGroupPicker(true);
+        setLoginLoading(false);
+      }
     } else {
-      router.push("/");
+      setLoginError("No groups found for this username.");
+      setLoginLoading(false);
     }
+  };
+
+  const enterGroup = (e: any) => {
+    const encryptedRoomId = CryptoJS.AES.encrypt(String(e.room_id), secretKey).toString();
+    const encryptedUserId = CryptoJS.AES.encrypt(String(e.id), secretKey).toString();
+    const encryptedRoomName = CryptoJS.AES.encrypt(e.rooms.room_name, secretKey).toString();
+    const encryptedRoomCode = CryptoJS.AES.encrypt(e.rooms.room_code, secretKey).toString();
+    router.push(`/chatRoom?roomId=${encodeURIComponent(encryptedRoomId)}&userId=${encodeURIComponent(encryptedUserId)}&roomName=${encodeURIComponent(encryptedRoomName)}&roomCode=${encodeURIComponent(encryptedRoomCode)}`);
   };
 
   const handleCreateRoom = async () => {
@@ -207,37 +231,71 @@ export default function IndexPage() {
             <Card className="border-border/50 bg-card/50 backdrop-blur-sm animate-fade-in">
               <CardHeader className="pb-4">
                 <CardTitle className="text-lg">My Groups</CardTitle>
-                <CardDescription>Enter your username to see your groups</CardDescription>
+                <CardDescription>{showGroupPicker ? "Select a group to enter" : "Enter your username to see your groups"}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium text-foreground">Username</Label>
-                  <Input
-                    type="text"
-                    placeholder="Your username"
-                    value={loginUsername}
-                    onChange={(e) => setLoginUsername(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleLogin(); }}
-                    className="bg-background/50 border-border/50 h-11 text-sm font-mono"
-                    autoFocus
-                  />
-                </div>
-                <Button
-                  onClick={handleLogin}
-                  disabled={loginLoading || !loginUsername.trim()}
-                  className="w-full h-11 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-medium shadow-lg shadow-purple-500/20 transition-all"
-                >
-                  {loginLoading ? (
-                    <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <ArrowRight className="h-4 w-4" />
-                      Continue
-                    </span>
-                  )}
-                </Button>
-                {loginError && (
-                  <p className="text-xs text-red-400 text-center">{loginError}</p>
+                {showGroupPicker ? (
+                  <div className="space-y-1.5 max-h-[300px] overflow-y-auto custom-scrollbar">
+                    {userGroups.map((g: any) => (
+                      <button
+                        key={g.room_id}
+                        onClick={() => enterGroup(g)}
+                        className="w-full flex items-center gap-3 p-3 rounded-xl bg-secondary/20 hover:bg-secondary/40 border border-border/30 hover:border-border/60 transition-all text-left"
+                      >
+                        <Avatar className="h-10 w-10 shrink-0 ring-2 ring-border/50">
+                          {g.rooms.group_photo ? (
+                            <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" />
+                          ) : (
+                            <AvatarFallback className="text-[10px] accent-avatar-bg">
+                              {g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
+                            </AvatarFallback>
+                          )}
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground truncate">{g.rooms.room_name}</p>
+                          <p className="text-[11px] text-muted-foreground/60">{g.memberCount} member{g.memberCount !== 1 ? "s" : ""}</p>
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => { setShowGroupPicker(false); setLoginUsername(""); setUserGroups([]); }}
+                      className="w-full text-xs text-muted-foreground hover:text-foreground text-center py-2 transition-colors"
+                    >
+                      Use a different username
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-foreground">Username</Label>
+                      <Input
+                        type="text"
+                        placeholder="Your username"
+                        value={loginUsername}
+                        onChange={(e) => setLoginUsername(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleLogin(); }}
+                        className="bg-background/50 border-border/50 h-11 text-sm font-mono"
+                        autoFocus
+                      />
+                    </div>
+                    <Button
+                      onClick={handleLogin}
+                      disabled={loginLoading || !loginUsername.trim()}
+                      className="w-full h-11 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-medium shadow-lg shadow-purple-500/20 transition-all"
+                    >
+                      {loginLoading ? (
+                        <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <ArrowRight className="h-4 w-4" />
+                          Continue
+                        </span>
+                      )}
+                    </Button>
+                    {loginError && (
+                      <p className="text-xs text-red-400 text-center">{loginError}</p>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
