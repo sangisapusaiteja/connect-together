@@ -699,27 +699,27 @@ function ChatRoom() {
     <div className="flex-1 flex flex-row min-h-0 bg-background">
       {/* Groups Sidebar — always visible on desktop when loaded */}
       {groupsLoaded && (
-        <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-r border-border/50 bg-card/40 backdrop-blur-xl">
-          <div className="shrink-0 border-b border-border/50 px-4 py-3 flex items-center justify-between">
-            <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">My Groups</h3>
+        <div className="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-border/50 bg-card/60 backdrop-blur-xl">
+          <div className="shrink-0 border-b border-border/50 px-3 py-2.5 flex items-center justify-between">
+            <h3 className="text-[11px] font-semibold text-foreground uppercase tracking-widest">Groups</h3>
             <button onClick={() => { localStorage.removeItem("last-username"); router.push("/"); }} className="h-6 w-6 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" title="Logout">
               <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-0.5">
             {myGroups.map((g: any) => {
               const isActive = g.room_id === roomId;
               return (
                 <button
                   key={g.room_id}
                   onClick={() => { if (!isActive) navigateToGroup(g); }}
-                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl transition-all text-left ${isActive ? "bg-ring/10 ring-1 ring-ring/30" : "hover:bg-secondary/30"}`}
+                  className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${isActive ? "bg-ring/10 ring-1 ring-ring/20" : "hover:bg-secondary/30"}`}
                 >
-                  <Avatar className="h-9 w-9 shrink-0 ring-2 ring-border/50">
-                    {g.rooms.group_photo ? <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" /> : <AvatarFallback className="text-[9px] accent-avatar-bg">{g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}</AvatarFallback>}
+                  <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border/40">
+                    {g.rooms.group_photo ? <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" /> : <AvatarFallback className="text-[8px] accent-avatar-bg">{g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}</AvatarFallback>}
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{g.rooms.room_name}</p>
+                    <p className="text-sm font-medium text-foreground truncate leading-tight">{g.rooms.room_name}</p>
                     <p className="text-[10px] text-muted-foreground/60">{g.memberCount} member{g.memberCount !== 1 ? "s" : ""}</p>
                   </div>
                 </button>
@@ -762,7 +762,7 @@ function ChatRoom() {
 
       {hasRoom ? <><div className="flex-1 flex flex-col min-w-0">
         {/* Chat Header */}
-        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
+        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 py-2.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3 min-w-0">
               <a href="/" className="shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
@@ -828,10 +828,10 @@ function ChatRoom() {
         <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto custom-scrollbar px-3 sm:px-5 py-4 relative bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-500/[0.03] via-transparent to-transparent"
+        className="flex-1 overflow-y-auto custom-scrollbar px-0 relative"
       >
           {messages.length > 0 ? (
-            <div className="max-w-4xl mx-auto space-y-1">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-0.5">
             {messages.map((message: any, index) => {
               const msgId = message.id;
               const isCurrentUser = message.user_id?.id === userId;
@@ -971,8 +971,8 @@ function ChatRoom() {
       </div>
 
       {/* Message Input */}
-      <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl p-3 sm:p-4">
-        <div className="max-w-4xl mx-auto">
+      <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl px-0 py-3">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6">
           {/* File attachments preview */}
           {imagePreviews.length > 0 && (
             <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
@@ -1123,7 +1123,7 @@ function ChatRoom() {
       </div>
 
       {/* Right: Room Info Panel */}
-      <aside className="hidden lg:flex w-[360px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
+      <aside className="hidden lg:flex w-[320px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
         {/* Animated Banner */}
         <div className="relative shrink-0 h-36 overflow-hidden">
           {groupPhoto ? (
