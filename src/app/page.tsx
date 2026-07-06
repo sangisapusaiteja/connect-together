@@ -69,39 +69,10 @@ export default function IndexPage() {
   const handleLogin = async () => {
     if (!loginUsername.trim()) { setLoginError("Enter your username."); return; }
     setLoginLoading(true); setLoginError(null);
-    const { data: existing } = await supabaseBrowserClient.from("users").select("id").eq("username", loginUsername.trim()).maybeSingle();
-    if (!existing) { setLoginError("Username not found. Join a room first."); setLoginLoading(false); return; }
+    const { data: existing } = await supabaseBrowserClient.from("users").select("id").eq("username", loginUsername.trim()).limit(1);
+    if (!existing || existing.length === 0) { setLoginError("Username not found. Join a room first."); setLoginLoading(false); return; }
     try { localStorage.setItem("last-username", loginUsername.trim()); } catch {}
-    // Fetch all groups for this user
-    const { data: entries } = await supabaseBrowserClient
-      .from("users")
-      .select("id, room_id, user_name, rooms!users_room_id_fkey(id, room_name, room_code, group_photo)")
-      .eq("username", loginUsername.trim());
-    if (entries && entries.length > 0) {
-      const withCounts = await Promise.all(
-        entries.map(async (e: any) => {
-          const { count } = await supabaseBrowserClient.from("users").select("id", { count: "exact", head: true }).eq("room_id", e.room_id);
-          return { ...e, memberCount: count || 0 };
-        })
-      );
-      setUserGroups(withCounts);
-      if (withCounts.length === 1) {
-        // Only one group — redirect directly
-        const e = withCounts[0];
-        const encryptedRoomId = CryptoJS.AES.encrypt(String(e.room_id), secretKey).toString();
-        const encryptedUserId = CryptoJS.AES.encrypt(String(e.id), secretKey).toString();
-        const encryptedRoomName = CryptoJS.AES.encrypt(e.rooms.room_name, secretKey).toString();
-        const encryptedRoomCode = CryptoJS.AES.encrypt(e.rooms.room_code, secretKey).toString();
-        router.push(`/chatRoom?roomId=${encodeURIComponent(encryptedRoomId)}&userId=${encodeURIComponent(encryptedUserId)}&roomName=${encodeURIComponent(encryptedRoomName)}&roomCode=${encodeURIComponent(encryptedRoomCode)}`);
-      } else {
-        // Multiple groups — show picker
-        setShowGroupPicker(true);
-        setLoginLoading(false);
-      }
-    } else {
-      setLoginError("No groups found for this username.");
-      setLoginLoading(false);
-    }
+    router.push(`/chatRoom?username=${encodeURIComponent(loginUsername.trim())}`);
   };
 
   const enterGroup = (e: any) => {

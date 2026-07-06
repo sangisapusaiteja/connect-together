@@ -59,9 +59,10 @@ function ChatRoom() {
   const [bioDraft, setBioDraft] = useState("");
   const [editingProfilePic, setEditingProfilePic] = useState(false);
   const [showMobileInfo, setShowMobileInfo] = useState(false);
-  const [showGroups, setShowGroups] = useState(false);
+  const [showGroups, setShowGroups] = useState(true);
   const [myGroups, setMyGroups] = useState<any[]>([]);
   const [groupsLoaded, setGroupsLoaded] = useState(false);
+  const [hasRoom, setHasRoom] = useState(false);
   const [typingUsers, setTypingUsers] = useState<Record<number, string>>({});
   const typingTimeoutRef = useRef<Record<number, NodeJS.Timeout>>({});
   const typingChannelRef = useRef<any>(null);
@@ -72,6 +73,7 @@ function ChatRoom() {
   const encryptedUserId = searchParams.get("userId");
   const encryptedRoomName = searchParams.get("roomName");
   const encryptedRoomCode = searchParams.get("roomCode");
+  const usernameParam = searchParams.get("username");
 
   const [roomId, setRoomId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
@@ -167,6 +169,7 @@ function ChatRoom() {
         }
         setRoomId(decryptedRoomId);
         setUserId(decryptedUserId);
+        setHasRoom(true);
         setRoomName(decryptedRoomName);
         setRoomCode(decryptedRoomCode);
       } catch (e) {
@@ -237,16 +240,15 @@ function ChatRoom() {
     return () => { supabaseBrowserClient.removeChannel(sub); };
   }, [roomId]);
 
-  // Fetch user's groups for sidebar
+  // Fetch user's groups for sidebar — always run (even without roomId)
   useEffect(() => {
-    if (!userId) return;
-    const username = localStorage.getItem("last-username");
-    if (!username) return;
+    const uname = usernameParam || localStorage.getItem("last-username");
+    if (!uname) return;
     const fetchGroups = async () => {
       const { data: entries } = await supabaseBrowserClient
         .from("users")
         .select("id, room_id, user_name, rooms!users_room_id_fkey(id, room_name, room_code, group_photo)")
-        .eq("username", username);
+        .eq("username", uname);
       if (entries) {
         const withCounts = await Promise.all(
           entries.map(async (e: any) => {
@@ -262,7 +264,7 @@ function ChatRoom() {
       setGroupsLoaded(true);
     };
     fetchGroups();
-  }, [userId]);
+  }, [usernameParam]);
 
   // Online status — set online on mount, heartbeat every 30s, offline on unmount
   useEffect(() => {
@@ -670,13 +672,13 @@ function ChatRoom() {
 
   return (
     <div className="flex-1 flex flex-row min-h-0 bg-background">
-      {/* Groups Sidebar */}
-      {showGroups && groupsLoaded && (
+      {/* Groups Sidebar — always visible on desktop when loaded */}
+      {groupsLoaded && (
         <div className="hidden lg:flex w-[280px] shrink-0 flex-col border-r border-border/50 bg-card/40 backdrop-blur-xl">
           <div className="shrink-0 border-b border-border/50 px-4 py-3 flex items-center justify-between">
             <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">My Groups</h3>
-            <button onClick={() => setShowGroups(false)} className="h-6 w-6 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-              <X className="h-3.5 w-3.5" />
+            <button onClick={() => { localStorage.removeItem("last-username"); window.location.href = "/"; }} className="h-6 w-6 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" title="Logout">
+              <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
@@ -694,20 +696,10 @@ function ChatRoom() {
                       window.location.href = `/chatRoom?roomId=${encodeURIComponent(encryptedRoomId)}&userId=${encodeURIComponent(encryptedUserId)}&roomName=${encodeURIComponent(encryptedRoomName)}&roomCode=${encodeURIComponent(encryptedRoomCode)}`;
                     }
                   }}
-                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl transition-all text-left ${
-                    isActive
-                      ? "bg-ring/10 ring-1 ring-ring/30"
-                      : "hover:bg-secondary/30"
-                  }`}
+                  className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl transition-all text-left ${isActive ? "bg-ring/10 ring-1 ring-ring/30" : "hover:bg-secondary/30"}`}
                 >
                   <Avatar className="h-9 w-9 shrink-0 ring-2 ring-border/50">
-                    {g.rooms.group_photo ? (
-                      <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" />
-                    ) : (
-                      <AvatarFallback className="text-[9px] accent-avatar-bg">
-                        {g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
-                      </AvatarFallback>
-                    )}
+                    {g.rooms.group_photo ? <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" /> : <AvatarFallback className="text-[9px] accent-avatar-bg">{g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}</AvatarFallback>}
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-foreground truncate">{g.rooms.room_name}</p>
@@ -716,61 +708,42 @@ function ChatRoom() {
                 </button>
               );
             })}
-            {myGroups.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-6">No other groups</p>
-            )}
+            {myGroups.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No groups yet</p>}
           </div>
         </div>
       )}
 
-      {/* Mobile Groups Drawer */}
-      {showGroups && groupsLoaded && (
+      {/* Mobile Groups Toggle */}
+      {!hasRoom && (
+        <div className="lg:hidden fixed bottom-4 left-4 z-40">
+          <button onClick={() => setShowGroups(!showGroups)} className="h-12 w-12 rounded-full bg-gradient-to-br from-purple-600 to-blue-600 text-white shadow-lg flex items-center justify-center">
+            <MessageCircle className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+      {showGroups && groupsLoaded && !hasRoom && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowGroups(false)} />
           <div className="absolute left-0 top-0 bottom-0 w-[75vw] max-w-[300px] bg-card border-r border-border/50 shadow-2xl animate-fade-in flex flex-col">
             <div className="shrink-0 border-b border-border/50 px-4 py-3 flex items-center justify-between">
               <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">My Groups</h3>
-              <button onClick={() => setShowGroups(false)} className="h-7 w-7 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                <X className="h-4 w-4" />
-              </button>
+              <button onClick={() => setShowGroups(false)} className="h-7 w-7 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"><X className="h-4 w-4" /></button>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
-              {myGroups.map((g: any) => {
-                const isActive = g.room_id === roomId;
-                return (
-                  <button
-                    key={g.room_id}
-                    onClick={() => {
-                      if (!isActive) {
-                        const encryptedRoomId = CryptoJS.AES.encrypt(String(g.room_id), secretKey).toString();
-                        const encryptedUserId = CryptoJS.AES.encrypt(String(g.id), secretKey).toString();
-                        const encryptedRoomName = CryptoJS.AES.encrypt(g.rooms.room_name, secretKey).toString();
-                        const encryptedRoomCode = CryptoJS.AES.encrypt(g.rooms.room_code, secretKey).toString();
-                        window.location.href = `/chatRoom?roomId=${encodeURIComponent(encryptedRoomId)}&userId=${encodeURIComponent(encryptedUserId)}&roomName=${encodeURIComponent(encryptedRoomName)}&roomCode=${encodeURIComponent(encryptedRoomCode)}`;
-                      }
-                    }}
-                    className={`w-full flex items-center gap-2.5 p-2.5 rounded-xl transition-all text-left ${
-                      isActive ? "bg-ring/10 ring-1 ring-ring/30" : "hover:bg-secondary/30"
-                    }`}
-                  >
-                    <Avatar className="h-9 w-9 shrink-0 ring-2 ring-border/50">
-                      {g.rooms.group_photo ? <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" /> : <AvatarFallback className="text-[9px] accent-avatar-bg">{g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}</AvatarFallback>}
-                    </Avatar>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate">{g.rooms.room_name}</p>
-                      <p className="text-[10px] text-muted-foreground/60">{g.memberCount} member{g.memberCount !== 1 ? "s" : ""}</p>
-                    </div>
-                  </button>
-                );
-              })}
-              {myGroups.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No other groups</p>}
+              {myGroups.map((g: any) => (
+                <button key={g.room_id} onClick={() => { const eR = CryptoJS.AES.encrypt(String(g.room_id), secretKey).toString(); const eU = CryptoJS.AES.encrypt(String(g.id), secretKey).toString(); const eN = CryptoJS.AES.encrypt(g.rooms.room_name, secretKey).toString(); const eC = CryptoJS.AES.encrypt(g.rooms.room_code, secretKey).toString(); window.location.href = `/chatRoom?roomId=${encodeURIComponent(eR)}&userId=${encodeURIComponent(eU)}&roomName=${encodeURIComponent(eN)}&roomCode=${encodeURIComponent(eC)}`; }} className="w-full flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-secondary/30 transition-all text-left">
+                  <Avatar className="h-9 w-9 shrink-0 ring-2 ring-border/50">
+                    {g.rooms.group_photo ? <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" /> : <AvatarFallback className="text-[9px] accent-avatar-bg">{g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}</AvatarFallback>}
+                  </Avatar>
+                  <div className="min-w-0 flex-1"><p className="text-sm font-medium text-foreground truncate">{g.rooms.room_name}</p></div>
+                </button>
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Left: Chat */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {hasRoom ? <><div className="flex-1 flex flex-col min-w-0">
         {/* Chat Header */}
         <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
           <div className="flex items-center justify-between">
@@ -1614,6 +1587,18 @@ function ChatRoom() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      </>
+      : (
+        <div className="flex-1 flex flex-col min-w-0 items-center justify-center bg-background">
+          <div className="text-center px-4">
+            <div className="h-20 w-20 rounded-3xl bg-secondary/30 flex items-center justify-center mx-auto mb-4 ring-1 ring-border/20">
+              <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
+            </div>
+            <h2 className="text-xl font-semibold text-foreground">Select a Group</h2>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs">Choose a group from the sidebar to start chatting</p>
           </div>
         </div>
       )}
