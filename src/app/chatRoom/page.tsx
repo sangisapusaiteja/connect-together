@@ -764,23 +764,21 @@ function ChatRoom() {
         {/* Chat Header */}
         <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 py-2.5">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3 min-w-0">
+            <div className="flex items-center gap-2.5 min-w-0">
               <a href="/" className="shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
-                <ArrowLeft className="h-5 w-5 text-muted-foreground" />
+                <ArrowLeft className="h-4 w-4 text-muted-foreground" />
               </a>
-              <Avatar className="h-10 w-10 shrink-0 border-2 border-ring/30">
+              <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border/50">
                 {profilePic ? (
                   <AvatarImage src={profilePic} alt="Profile" className="object-cover" />
                 ) : (
-                  <AvatarFallback className="bg-gradient-to-br from-purple-500/20 to-blue-500/20 text-xs font-semibold text-purple-300">
-                    You
-                  </AvatarFallback>
+                  <AvatarFallback className="text-[10px] accent-avatar-bg">You</AvatarFallback>
                 )}
               </Avatar>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-foreground truncate">{roomName}</h2>
+                <h2 className="text-sm font-semibold text-foreground truncate leading-tight">{roomName}</h2>
                 {Object.keys(typingUsers).length > 0 ? (
-                  <p className="text-xs text-muted-foreground/70 animate-fade-in">
+                  <p className="text-[11px] text-muted-foreground/70 animate-fade-in">
                     <span className="text-ring">{Object.values(typingUsers).join(", ")}</span>
                     {Object.keys(typingUsers).length === 1 ? " is typing" : " are typing"}
                     <span className="inline-flex ml-0.5">
@@ -790,28 +788,28 @@ function ChatRoom() {
                     </span>
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <p className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
-                    Active now
+                    {roomUsers.length} member{roomUsers.length !== 1 ? "s" : ""}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => setShowMobileInfo(true)}
-                className="lg:hidden h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
+                className="lg:hidden h-7 w-7 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
                 title="Room info"
               >
-                <Users className="h-4 w-4" />
+                <Users className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => { localStorage.removeItem("last-username"); router.push("/"); }}
-                className="h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
+                className="h-7 w-7 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
                 title="Logout"
               >
-                <LogOut className="h-4 w-4" />
+                <LogOut className="h-3.5 w-3.5" />
               </button>
             </div>
           </div>
@@ -878,28 +876,28 @@ function ChatRoom() {
                       </div>
                     )}
                     <div
-                      className={`flex flex-col max-w-[75%] sm:max-w-[65%] ${
+                      className={`flex flex-col max-w-[80%] sm:max-w-[70%] ${
                         isCurrentUser ? "items-end" : "items-start"
                       }`}
                     >
                       {showName && !isCurrentUser && (
-                        <span className="text-[11px] font-medium text-muted-foreground mb-0.5 ml-3">
+                        <span className="text-[11px] font-medium text-muted-foreground mb-0.5 ml-2">
                           {message.user_id?.user_name}
                         </span>
                       )}
                       <div className="group relative">
                         <div
-                          className={`px-3 py-2 rounded-2xl text-sm break-words ${
+                          className={`px-3.5 py-2 rounded-2xl text-sm break-words ${
                             isCurrentUser
-                              ? "text-white rounded-br-md"
-                              : "bg-secondary/70 text-foreground rounded-bl-md"
+                              ? "text-white rounded-br-sm"
+                              : "bg-secondary/60 text-foreground rounded-bl-sm"
                           } ${isOptimistic ? "opacity-70" : ""}`}
                           style={isCurrentUser ? { background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})` } : undefined}
                         >
                           <p className="leading-relaxed">{message.message}</p>
                           <p
                             className={`text-[10px] mt-1 ${
-                              isCurrentUser ? "text-white/60" : "text-muted-foreground"
+                              isCurrentUser ? "text-white/50" : "text-muted-foreground/60"
                             }`}
                           >
                             {formatTime(message.sent_at)}
@@ -943,12 +941,28 @@ function ChatRoom() {
             <div ref={scrollToBottomOnRender} />
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="h-16 w-16 rounded-2xl bg-secondary/50 flex items-center justify-center mb-4">
-              <MessageCircle className="h-8 w-8 text-muted-foreground" />
+          <div className="flex flex-col items-center justify-center h-full text-center px-4">
+            <div className="h-14 w-14 rounded-2xl bg-secondary/40 flex items-center justify-center mb-3 ring-1 ring-border/20">
+              <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
             </div>
             <p className="text-sm font-medium text-foreground mb-1">No messages yet</p>
-            <p className="text-xs text-muted-foreground">Be the first to say something!</p>
+            <p className="text-xs text-muted-foreground/60">Be the first to say something</p>
+          </div>
+        )}
+
+        {/* Scroll to bottom FAB */}
+        {showScrollBtn && (
+          <div className="absolute bottom-20 right-4 z-10">
+            <button
+              onClick={scrollToBottom}
+              className="h-8 w-8 rounded-full text-white shadow-md flex items-center justify-center transition-all animate-fade-in hover:scale-110 active:scale-95"
+              style={{
+                background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})`,
+                boxShadow: `0 4px 12px ${currentPack.colors[0]}33`,
+              }}
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
           </div>
         )}
 
@@ -971,53 +985,30 @@ function ChatRoom() {
       </div>
 
       {/* Message Input */}
-      <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl px-0 py-3">
+      <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl px-0 py-2.5">
         <div className="max-w-3xl mx-auto px-4 sm:px-6">
-          {/* File attachments preview */}
           {imagePreviews.length > 0 && (
             <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
               {imagePreviews.map((url, i) => (
                 <div key={i} className="relative shrink-0">
-                  <div className="h-16 w-16 rounded-lg overflow-hidden border border-border/50">
+                  <div className="h-14 w-14 rounded-lg overflow-hidden border border-border/50">
                     <img src={url} alt="attachment" className="h-full w-full object-cover" />
                   </div>
-                  <button
-                    onClick={() => removeAttachment(i)}
-                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 transition-colors"
-                  >
+                  <button onClick={() => removeAttachment(i)} className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 transition-colors">
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
             </div>
           )}
-          <div className="flex items-center gap-2">
-            {/* File attach button */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleFileAttach}
-              className="hidden"
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="shrink-0 h-11 w-11 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
-            >
-              <Paperclip className="h-4 w-4" />
+          <div className="flex items-center gap-1.5">
+            <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileAttach} className="hidden" />
+            <button onClick={() => fileInputRef.current?.click()} className="shrink-0 h-9 w-9 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground">
+              <Paperclip className="h-3.5 w-3.5" />
             </button>
-            {/* Emoji button */}
             <div className="relative">
-              <button
-                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                className={`shrink-0 h-11 w-11 rounded-xl transition-all flex items-center justify-center ${
-                  showEmojiPicker
-                    ? "bg-primary/15 text-primary border border-primary/30"
-                    : "bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Smile className="h-4 w-4" />
+              <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`shrink-0 h-9 w-9 rounded-lg transition-all flex items-center justify-center ${showEmojiPicker ? "bg-primary/15 text-primary border border-primary/30" : "bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground"}`}>
+                <Smile className="h-3.5 w-3.5" />
               </button>
               {showEmojiPicker && (
                 <div
@@ -1093,16 +1084,16 @@ function ChatRoom() {
                 }
               }}
               placeholder="Type a message..."
-              className="flex-1 bg-secondary/50 border-border/50 h-11 rounded-xl text-sm placeholder:text-muted-foreground focus-visible:ring-ring/50"
+              className="flex-1 bg-secondary/50 border-border/50 h-9 rounded-lg text-sm placeholder:text-muted-foreground focus-visible:ring-ring/50"
             />
             <Button
               onClick={handleSendMessage}
               disabled={!newMessage.trim()}
               size="icon"
-              className="h-11 w-11 shrink-0 rounded-xl text-white shadow-lg disabled:opacity-30 disabled:shadow-none transition-all"
+              className="h-9 w-9 shrink-0 rounded-lg text-white shadow-sm disabled:opacity-30 disabled:shadow-none transition-all"
               style={{
                 background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})`,
-                boxShadow: `0 10px 15px -3px ${currentPack.colors[0]}33`,
+                boxShadow: `0 4px 10px -3px ${currentPack.colors[0]}33`,
               }}
               onMouseEnter={(e) => {
                 (e.currentTarget as HTMLElement).style.background = `linear-gradient(135deg, ${currentPack.colors[1]}, ${currentPack.colors[0]})`;
