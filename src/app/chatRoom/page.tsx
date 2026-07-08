@@ -1681,7 +1681,12 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
               <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
             </div>
             <h2 className="text-xl font-semibold text-foreground">Select a Group</h2>
-            <p className="text-sm text-muted-foreground mt-1 max-w-xs">Choose a group from the sidebar to start chatting</p>
+            <p className="text-sm text-muted-foreground mt-1 max-w-xs">Choose a group from the sidebar to start chatting, or create a new one</p>
+            <a href="/join" className="inline-flex items-center gap-2 mt-4 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-all hover:scale-105 active:scale-95"
+              style={{ background: `linear-gradient(135deg, ${ACCENT_PACKS[0].colors[0]}, ${ACCENT_PACKS[0].colors[2]})` }}
+            >
+              Create or Join Group
+            </a>
           </div>
         </div>
       )}
