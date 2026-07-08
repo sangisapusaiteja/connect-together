@@ -41,7 +41,7 @@ function Skeleton({ className, style }: { className?: string; style?: React.CSSP
 }
 
 const ACCENT_PACKS = [
-  { id: "default", name: "Purple", gradient: "from-purple-400 to-blue-400", colors: ["#a855f7", "#6366f1", "#3b82f6"] },
+  { id: "default", name: "Blue", gradient: "from-blue-400 to-indigo-400", colors: ["#3b82f6", "#6366f1", "#818cf8"] },
   { id: "ocean", name: "Ocean", gradient: "from-blue-400 to-cyan-400", colors: ["#3b82f6", "#06b6d4", "#0ea5e9"] },
   { id: "forest", name: "Forest", gradient: "from-green-400 to-emerald-400", colors: ["#22c55e", "#10b981", "#059669"] },
   { id: "sunset", name: "Sunset", gradient: "from-orange-400 to-rose-400", colors: ["#f97316", "#ef4444", "#d946ef"] },
@@ -721,8 +721,8 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
     <div className="flex-1 flex flex-row min-h-0 bg-background">
       {/* Groups Sidebar — always visible on desktop when loaded */}
       {groupsLoaded && (
-        <div className="hidden lg:flex w-[300px] shrink-0 flex-col border-r border-border/50 bg-card/60 backdrop-blur-xl">
-          <div className="shrink-0 border-b border-border/50 px-4 py-3">
+        <div className="hidden lg:flex w-[300px] shrink-0 flex-col bg-card/40">
+          <div className="shrink-0 px-4 py-3">
             <h3 className="text-sm font-semibold text-foreground uppercase tracking-widest">Groups</h3>
           </div>
           <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
@@ -781,7 +781,7 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
 
       {hasRoom ? <><div className="flex-1 flex flex-col min-w-0">
         {/* Chat Header */}
-        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-0 py-3">
+        <header className="shrink-0 bg-card/40 px-0 py-3">
           <div className="flex items-center justify-between px-3">
             <div className="flex items-center gap-3 min-w-0">
               <a href={`/chatRoom?username=${currentUsername}`} className="shrink-0 p-2 -ml-2 rounded-xl hover:bg-secondary/50 transition-colors">
@@ -1148,7 +1148,7 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
       </div>
 
       {/* Right: Room Info Panel */}
-      <aside className="hidden lg:flex w-[340px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
+      <aside className="hidden lg:flex w-[340px] shrink-0 flex-col bg-card/40">
         {/* Animated Banner */}
         <div className="relative shrink-0 h-44 overflow-hidden">
           {groupPhoto ? (
