@@ -4,16 +4,14 @@ import { supabaseBrowserClient } from "@utils/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { Input } from "@*/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@*/components/ui/avatar";
-import { Send, Smile, History, X } from "lucide-react";
+import { Bubble, BubbleContent } from "@*/components/ui/bubble";
+import { Message, MessageAvatar, MessageContent, MessageFooter } from "@*/components/ui/message";
+import { Send, Smile, X } from "lucide-react";
 import CryptoJS from "crypto-js";
 import { useSearchParams } from "next/navigation";
-
-const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
-  { label: "Smileys", emojis: ["😀", "😂", "🤣", "😊", "😍", "🥰", "😎", "🤩", "😢", "😭", "😤", "😴", "🤗", "😇", "🙃", "😏", "😌", "😔"] },
-  { label: "Gestures", emojis: ["👍", "👎", "👏", "🙌", "🤝", "✌️", "🤞", "👊", "✊", "💪", "🫶", "🙏", "🤲", "👋", "🖖", "🤙"] },
-  { label: "Objects", emojis: ["❤️", "💔", "🔥", "⭐", "✨", "💯", "🎉", "🎊", "💡", "🎯", "🧠", "👀", "💀", "🎁", "🏆", "🚀", "💎", "🔮"] },
-  { label: "Symbols", emojis: ["✅", "❌", "💚", "💙", "💜", "🖤", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚪", "🟤", "♻️", "🛑"] },
-];
+import Picker from "@emoji-mart/react";
+import emojiData from "@emoji-mart/data";
+import { useTheme } from "next-themes";
 
 interface FloatingDmPanelProps {
   targetUser: { id: number; user_name: string; profile_pic?: string } | null;
@@ -22,12 +20,11 @@ interface FloatingDmPanelProps {
 }
 
 export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanelProps) => {
+  const { theme } = useTheme();
   const [newMessage, setNewMessage] = useState("");
   const [messageData, setMessageData] = useState<any[]>([]);
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [emojiTab, setEmojiTab] = useState(0);
-  const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [panelSize, setPanelSize] = useState({ w: 360, h: 480 });
   const bottomRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -42,10 +39,6 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
 
   const [roomId, setRoomId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
-
-  useEffect(() => {
-    try { const stored = localStorage.getItem("recentEmojis"); if (stored) setRecentEmojis(JSON.parse(stored)); } catch {}
-  }, []);
 
   useEffect(() => {
     if (encryptedRoomId && encryptedUserId) {
@@ -125,11 +118,6 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
 
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage((prev) => prev + emoji);
-    setRecentEmojis((prev) => {
-      const next = [emoji, ...prev.filter((e) => e !== emoji)].slice(0, 12);
-      try { localStorage.setItem("recentEmojis", JSON.stringify(next)); } catch {}
-      return next;
-    });
     setShowEmojiPicker(false);
   };
 
@@ -188,18 +176,23 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
           messageData.map((message: any) => {
             const isMine = message.from_id === userId;
             return (
-              <div key={message.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                <div className={`px-3 py-1.5 rounded-2xl text-sm max-w-[85%] break-words ${
-                  isMine
-                    ? "bg-gradient-to-br from-purple-600 to-blue-600 text-white rounded-br-md"
-                    : "bg-secondary/70 text-foreground rounded-bl-md"
-                } ${message._optimistic ? "opacity-70" : ""}`}>
-                  <p className="leading-relaxed">{message.message}</p>
-                  <p className={`text-[10px] mt-0.5 ${isMine ? "text-white/50" : "text-muted-foreground"}`}>
+              <Message key={message.id} align={isMine ? "end" : "start"}>
+                <MessageContent>
+                  <Bubble
+                    variant={isMine ? "default" : "secondary"}
+                    align={isMine ? "end" : "start"}
+                    className={message._optimistic ? "opacity-70" : ""}
+                    style={isMine ? { background: "linear-gradient(135deg, #3b82f6, #6366f1)" } : undefined}
+                  >
+                    <BubbleContent>
+                      <p className="leading-relaxed">{message.message}</p>
+                    </BubbleContent>
+                  </Bubble>
+                  <MessageFooter>
                     {formatTime(message.sent_at)}{message._optimistic && " · sending..."}
-                  </p>
-                </div>
-              </div>
+                  </MessageFooter>
+                </MessageContent>
+              </Message>
             );
           })
         ) : (
@@ -219,32 +212,17 @@ export const FloatingDmPanel = ({ targetUser, onClose, onDrag }: FloatingDmPanel
             <Smile className="h-3.5 w-3.5" />
           </button>
           {showEmojiPicker && (
-            <div ref={emojiPickerRef} className="absolute bottom-full mb-2 left-0 w-[260px] bg-card border border-border/50 rounded-xl shadow-2xl shadow-black/30 animate-fade-in z-20 overflow-hidden">
-              {recentEmojis.length > 0 && (
-                <div className="px-2 pt-2 pb-1.5 border-b border-border/30">
-                  <div className="flex items-center gap-1 mb-1">
-                    <History className="h-2.5 w-2.5 text-muted-foreground" />
-                    <span className="text-[8px] font-medium text-muted-foreground uppercase tracking-wider">Recent</span>
-                  </div>
-                  <div className="flex gap-1 flex-wrap">
-                    {recentEmojis.slice(0, 8).map((emoji) => (
-                      <button key={emoji} onClick={() => handleEmojiSelect(emoji)} className="h-6 w-6 flex items-center justify-center hover:bg-secondary rounded-md text-sm transition-all hover:scale-110">{emoji}</button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="flex gap-1 px-2 pt-1.5 pb-1 border-b border-border/30">
-                {EMOJI_CATEGORIES.map((cat, i) => (
-                  <button key={cat.label} onClick={() => setEmojiTab(i)} className={`text-[8px] font-medium px-1.5 py-0.5 rounded-lg transition-all ${emojiTab === i ? "bg-purple-500/15 text-purple-400" : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"}`}>{cat.label}</button>
-                ))}
-              </div>
-              <div className="p-1.5 max-h-[140px] overflow-y-auto custom-scrollbar">
-                <div className="grid grid-cols-6 gap-0.5">
-                  {EMOJI_CATEGORIES[emojiTab].emojis.map((emoji) => (
-                    <button key={emoji} onClick={() => handleEmojiSelect(emoji)} className="h-7 w-7 flex items-center justify-center hover:bg-secondary/80 rounded-lg text-base transition-all hover:scale-110 active:scale-95">{emoji}</button>
-                  ))}
-                </div>
-              </div>
+            <div ref={emojiPickerRef} className="absolute bottom-full mb-2 left-0 z-20 scale-[0.72] origin-bottom-left">
+              <Picker
+                data={emojiData}
+                onEmojiSelect={(emoji: any) => handleEmojiSelect(emoji.native)}
+                theme={theme === "dark" ? "dark" : "light"}
+                previewPosition="none"
+                skinTonePosition="none"
+                set="native"
+                maxFrequentRows={1}
+                perLine={7}
+              />
             </div>
           )}
         </div>

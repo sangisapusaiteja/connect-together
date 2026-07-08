@@ -3,6 +3,8 @@
 import { Button } from "@*/components/ui/button";
 import { Input } from "@*/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@*/components/ui/avatar";
+import { Bubble, BubbleContent, BubbleReactions, BubbleGroup } from "@*/components/ui/bubble";
+import { Message, MessageAvatar, MessageContent, MessageHeader, MessageFooter, MessageGroup } from "@*/components/ui/message";
 import { supabaseBrowserClient } from "@utils/supabase/client";
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "next-themes";
@@ -12,27 +14,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
 import {
   Copy, Check, Send, MessageCircle, ArrowLeft,
-  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon, Users, Palette, Share2, Mail, MessageSquare, Camera, Edit3, CheckCheck, LogOut, Minus, Square, User
+  ChevronDown, ChevronLeft, ChevronRight, Smile, Paperclip, X, Loader2, History, Sun, Moon, Users, Palette, Share2, Mail, MessageSquare, Camera, Edit3, CheckCheck, LogOut, Minus, Square, User, Expand
 } from "lucide-react";
+import Picker from "@emoji-mart/react";
+import emojiData from "@emoji-mart/data";
 
-const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
-  {
-    label: "Smileys",
-    emojis: ["😀", "😂", "🤣", "😊", "😍", "🥰", "😎", "🤩", "😢", "😭", "😤", "😴", "🤗", "😇", "🙃", "😏", "😌", "😔"],
-  },
-  {
-    label: "Gestures",
-    emojis: ["👍", "👎", "👏", "🙌", "🤝", "✌️", "🤞", "👊", "✊", "💪", "🫶", "🙏", "🤲", "👋", "🖖", "🤙"],
-  },
-  {
-    label: "Objects",
-    emojis: ["❤️", "💔", "🔥", "⭐", "✨", "💯", "🎉", "🎊", "💡", "🎯", "🧠", "👀", "💀", "🎁", "🏆", "🚀", "💎", "🔮"],
-  },
-  {
-    label: "Symbols",
-    emojis: ["✅", "❌", "💚", "💙", "💜", "🖤", "🔴", "🟠", "🟡", "🟢", "🔵", "🟣", "⚪", "🟤", "♻️", "🛑"],
-  },
-];
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮"];
 
 function Skeleton({ className, style }: { className?: string; style?: React.CSSProperties }) {
   return (
@@ -55,6 +42,7 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
   const [copyMessage, setCopyMessage] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [mediaLightbox, setMediaLightbox] = useState<{ url: string; sender: string; sent_at: string }[] | null>(null);
+  const [mediaLightboxIndex, setMediaLightboxIndex] = useState(0);
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
   const [roomUsers, setRoomUsers] = useState<any[]>([]);
   const [activeDmUser, setActiveDmUser] = useState<{ id: number; user_name: string; profile_pic?: string } | null>(null);
@@ -111,8 +99,6 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
   const accentGradientStyle = { background: accentGradient } as React.CSSProperties;
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [emojiTab, setEmojiTab] = useState(0);
-  const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [reactions, setReactions] = useState<Record<number, string[]>>({});
   const [fileAttachments, setFileAttachments] = useState<File[]>([]);
@@ -131,13 +117,6 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
       initialScrollDone.current = true;
       el.scrollIntoView({ behavior: "auto" });
     }
-  }, []);
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("recentEmojis");
-      if (stored) setRecentEmojis(JSON.parse(stored));
-    } catch {}
   }, []);
 
   useEffect(() => {
@@ -492,11 +471,6 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
 
   const handleEmojiSelect = (emoji: string) => {
     setNewMessage((prev) => prev + emoji);
-    setRecentEmojis((prev) => {
-      const next = [emoji, ...prev.filter((e) => e !== emoji)].slice(0, 12);
-      try { localStorage.setItem("recentEmojis", JSON.stringify(next)); } catch {}
-      return next;
-    });
     setShowEmojiPicker(false);
   };
 
@@ -686,32 +660,87 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
 
   if (isLoading) {
     return (
-      <div className="flex-1 flex flex-col bg-background">
-        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 sm:px-5 py-3">
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-10 w-10 rounded-full" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-20" />
-            </div>
+      <div className="flex-1 flex flex-row min-h-0 bg-background">
+        {/* Sidebar skeleton */}
+        <div className="hidden lg:flex w-[300px] shrink-0 flex-col bg-card/40">
+          <div className="shrink-0 px-4 py-3">
+            <Skeleton className="h-4 w-20" />
           </div>
-        </header>
-        <div className="flex-1 p-4 space-y-4 overflow-hidden">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className={`flex items-end gap-2 ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
-              {i % 2 !== 0 && <Skeleton className="h-7 w-7 rounded-full shrink-0" />}
+          <div className="flex-1 px-3 py-3 space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-3">
+                <Skeleton className="h-10 w-10 rounded-full shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-3 w-16" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Chat skeleton */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className="shrink-0 px-3 py-3">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-full" />
               <div className="space-y-2">
-                <Skeleton
-                  className={`h-8 rounded-2xl ${i % 2 === 0 ? "rounded-br-md" : "rounded-bl-md"}`}
-                  style={{ width: `${60 + Math.random() * 120}px` }}
-                />
-                <Skeleton className="h-3 w-12" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-3 w-20" />
               </div>
             </div>
-          ))}
+          </div>
+          <div className="flex-1 p-4 space-y-4 overflow-hidden">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className={`flex items-end gap-2 ${i % 2 === 0 ? "justify-end" : "justify-start"}`}>
+                {i % 2 !== 0 && <Skeleton className="h-7 w-7 rounded-full shrink-0" />}
+                <div className="space-y-2">
+                  <Skeleton className={`h-8 rounded-2xl ${i % 2 === 0 ? "rounded-br-md" : "rounded-bl-md"}`} style={{ width: `${80 + Math.random() * 100}px` }} />
+                  <Skeleton className="h-3 w-12" />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="shrink-0 px-3 py-3">
+            <Skeleton className="h-10 w-full rounded-xl" />
+          </div>
         </div>
-        <div className="shrink-0 border-t border-border/50 bg-card/50 p-4">
-          <Skeleton className="h-11 w-full rounded-xl" />
+        {/* Right panel skeleton */}
+        <div className="hidden lg:flex w-[340px] shrink-0 flex-col bg-card/40">
+          <Skeleton className="h-44 w-full rounded-none" />
+          <div className="flex-1 px-5 py-5 space-y-6">
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-12" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-16" />
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2 p-4">
+                <Skeleton className="h-6 w-12 mx-auto" />
+                <Skeleton className="h-3 w-16 mx-auto" />
+              </div>
+              <div className="space-y-2 p-4">
+                <Skeleton className="h-6 w-12 mx-auto" />
+                <Skeleton className="h-3 w-16 mx-auto" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-16" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-2">
+                  <Skeleton className="h-9 w-9 rounded-full shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="h-2.5 w-16" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -865,95 +894,71 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
                       </span>
                     </div>
                   )}
-                  <div
-                    className={`flex items-end gap-2 animate-message-in ${
-                      isCurrentUser ? "justify-end" : "justify-start"
-                    } ${showName && !isCurrentUser ? "mt-3" : "mt-0.5"}`}
-                  >
-                    {!isCurrentUser && (
-                      <div className="w-9 shrink-0">
-                        {showAvatar ? (
-                          <Avatar className="h-9 w-9 border border-border/50">
-                            <AvatarImage
-                              src={message.user_id?.profile_pic}
-                              alt={message.user_id?.user_name}
-                              className="object-cover"
-                            />
-                            <AvatarFallback className="text-xs bg-secondary">
-                              {getInitials(message.user_id?.user_name || "?")}
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : (
-                          <div className="h-9 w-9" />
-                        )}
-                      </div>
-                    )}
-                    <div
-                      className={`flex flex-col max-w-[80%] sm:max-w-[70%] ${
-                        isCurrentUser ? "items-end" : "items-start"
-                      }`}
-                    >
+                  <Message align={isCurrentUser ? "end" : "start"} className={`animate-message-in ${showName && !isCurrentUser ? "mt-3" : "mt-0.5"}`}>
+                    <MessageAvatar>
+                      {showAvatar && (
+                        <Avatar className="h-9 w-9 border border-border/50">
+                          <AvatarImage
+                            src={isCurrentUser ? (profilePic ?? undefined) : message.user_id?.profile_pic}
+                            alt={isCurrentUser ? "You" : message.user_id?.user_name}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="text-xs bg-secondary">
+                            {isCurrentUser ? getInitials("You") : getInitials(message.user_id?.user_name || "?")}
+                          </AvatarFallback>
+                        </Avatar>
+                      )}
+                    </MessageAvatar>
+                    <MessageContent>
                       {showName && !isCurrentUser && (
-                        <span className="text-xs font-medium text-muted-foreground mb-0.5 ml-2">
-                          {message.user_id?.user_name}
-                        </span>
+                        <MessageHeader>{message.user_id?.user_name}</MessageHeader>
                       )}
                       <div className="group relative">
-                        <div
-                          className={`px-4 py-2.5 rounded-2xl text-base break-words ${
-                            isCurrentUser
-                              ? "text-white rounded-br-sm"
-                              : "bg-secondary/60 text-foreground rounded-bl-sm"
-                          } ${isOptimistic ? "opacity-70" : ""}`}
+                        <Bubble
+                          variant={isCurrentUser ? "default" : "secondary"}
+                          align={isCurrentUser ? "end" : "start"}
+                          className={isOptimistic ? "opacity-70" : ""}
                           style={isCurrentUser ? { background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})` } : undefined}
                         >
-                          {(() => {
-                            let parsedImages: string[] = [];
-                            try {
-                              if (message.images) parsedImages = JSON.parse(message.images);
-                            } catch {}
-                            return parsedImages.length > 0 && (
-                              <div className={`flex gap-2 mb-2 ${parsedImages.length === 1 ? "" : "flex-wrap"}`}>
-                                {parsedImages.map((url: string, i: number) => (
-                                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                                    <img
-                                      src={url}
-                                      alt="attachment"
-                                      className="rounded-lg object-cover max-h-48 max-w-[240px] cursor-pointer hover:opacity-90 transition-opacity"
-                                    />
-                                  </a>
-                                ))}
-                              </div>
-                            );
-                          })()}
-                          {message.message && <p className="leading-relaxed">{message.message}</p>}
-                          <p
-                            className={`text-[10px] mt-1 ${
-                              isCurrentUser ? "text-white/50" : "text-muted-foreground/60"
-                            }`}
-                          >
-                            {formatTime(message.sent_at)}
-                            {isOptimistic && " · sending..."}
-                          </p>
-                        </div>
-                        {/* Message reactions */}
-                        {messageReactions.length > 0 && (
-                          <div className={`flex gap-0.5 mt-0.5 ${isCurrentUser ? "justify-end" : "justify-start"}`}>
-                            {messageReactions.map((emoji: string, i: number) => (
-                              <button
-                                key={i}
-                                onClick={() => handleReaction(msgId, emoji)}
-                                className="text-xs bg-secondary/50 hover:bg-secondary rounded-full px-1.5 py-0.5 transition-colors"
-                              >
-                                {emoji}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        {/* Reaction buttons on hover */}
+                          <BubbleContent>
+                            {(() => {
+                              let parsedImages: string[] = [];
+                              try {
+                                if (message.images) parsedImages = JSON.parse(message.images);
+                              } catch {}
+                              return parsedImages.length > 0 && (
+                                <div className={`flex gap-2 mb-2 ${parsedImages.length === 1 ? "" : "flex-wrap"}`}>
+                                  {parsedImages.map((url: string, i: number) => (
+                                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                      <img
+                                        src={url}
+                                        alt="attachment"
+                                        className="rounded-lg object-cover max-h-48 max-w-[240px] cursor-pointer hover:opacity-90 transition-opacity"
+                                      />
+                                    </a>
+                                  ))}
+                                </div>
+                              );
+                            })()}
+                            {message.message && <p className="leading-relaxed">{message.message}</p>}
+                          </BubbleContent>
+                          {messageReactions.length > 0 && (
+                            <BubbleReactions role="img" aria-label={`Reactions: ${messageReactions.join(", ")}`}>
+                              {messageReactions.map((emoji: string, i: number) => (
+                                <button
+                                  key={i}
+                                  onClick={() => handleReaction(msgId, emoji)}
+                                  className="text-xs bg-secondary/50 hover:bg-secondary rounded-full px-1.5 py-0.5 transition-colors"
+                                >
+                                  {emoji}
+                                </button>
+                              ))}
+                            </BubbleReactions>
+                          )}
+                        </Bubble>
                         {!isOptimistic && (
                           <div className={`absolute -bottom-5 hidden group-hover:flex gap-1 bg-card border border-border/50 rounded-full px-2 py-1 shadow-lg z-10 ${isCurrentUser ? "right-0" : "left-0"}`}>
-                            {EMOJI_CATEGORIES[1].emojis.slice(0, 4).map((emoji) => (
+                            {REACTION_EMOJIS.map((emoji) => (
                               <button
                                 key={emoji}
                                 onClick={() => handleReaction(msgId, emoji)}
@@ -965,26 +970,12 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
                           </div>
                         )}
                       </div>
-                    </div>
-                    {isCurrentUser && (
-                      <div className="w-9 shrink-0">
-                        {showAvatar ? (
-                          <Avatar className="h-9 w-9 border border-border/50">
-                            <AvatarImage
-                              src={profilePic ?? undefined}
-                              alt="You"
-                              className="object-cover"
-                            />
-                            <AvatarFallback className="text-xs bg-secondary">
-                              {getInitials("You")}
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : (
-                          <div className="h-9 w-9" />
-                        )}
-                      </div>
-                    )}
-                  </div>
+                      <MessageFooter>
+                        {formatTime(message.sent_at)}
+                        {isOptimistic && " · sending..."}
+                      </MessageFooter>
+                    </MessageContent>
+                  </Message>
                 </div>
               );
             })}
@@ -1047,60 +1038,17 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
               {showEmojiPicker && (
                 <div
                   ref={emojiPickerRef}
-                  className="absolute bottom-full mb-3 left-0 w-[340px] sm:w-[360px] bg-card border border-border/50 rounded-xl shadow-2xl shadow-black/30 animate-fade-in z-20 overflow-hidden"
+                  className="absolute bottom-full mb-3 left-0 z-20"
                 >
-                  {/* Recent emojis */}
-                  {recentEmojis.length > 0 && (
-                    <div className="px-4 pt-4 pb-3 border-b border-border/30">
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <History className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent</span>
-                      </div>
-                      <div className="flex gap-1.5 flex-wrap">
-                        {recentEmojis.slice(0, 8).map((emoji) => (
-                          <button
-                            key={emoji}
-                            onClick={() => handleEmojiSelect(emoji)}
-                            className="h-9 w-9 flex items-center justify-center hover:bg-secondary rounded-lg text-lg transition-all hover:scale-110"
-                          >
-                            {emoji}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Tabs */}
-                  <div className="flex gap-1 px-4 pt-3 pb-2 border-b border-border/30">
-                    {EMOJI_CATEGORIES.map((cat, i) => (
-                      <button
-                        key={cat.label}
-                        onClick={() => setEmojiTab(i)}
-                        className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
-                          emojiTab === i
-                            ? "bg-primary/15 text-primary"
-                            : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Emoji grid */}
-                  <div className="p-3 max-h-[240px] overflow-y-auto custom-scrollbar">
-                    <div className="grid grid-cols-6 gap-1">
-                      {EMOJI_CATEGORIES[emojiTab].emojis.map((emoji) => (
-                        <button
-                          key={emoji}
-                          onClick={() => handleEmojiSelect(emoji)}
-                          className="h-10 w-10 flex items-center justify-center hover:bg-secondary/80 rounded-lg text-2xl transition-all hover:scale-110 active:scale-95"
-                        >
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <Picker
+                    data={emojiData}
+                    onEmojiSelect={(emoji: any) => handleEmojiSelect(emoji.native)}
+                    theme={theme === "dark" ? "dark" : "light"}
+                    previewPosition="none"
+                    skinTonePosition="none"
+                    set="native"
+                    maxFrequentRows={2}
+                  />
                 </div>
               )}
             </div>
@@ -1122,7 +1070,7 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
             />
             <Button
               onClick={handleSendMessage}
-              disabled={!newMessage.trim()}
+              disabled={!newMessage.trim() && fileAttachments.length === 0}
               size="icon"
               className="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm disabled:opacity-30 disabled:shadow-none transition-all"
               style={{
@@ -1377,13 +1325,14 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
                   {showThree.map((img, i) => (
                     <button
                       key={i}
-                      onClick={() => setMediaLightbox(allImages)}
-                      className="relative group/media"
+                      onClick={() => { setMediaLightbox(allImages); setMediaLightboxIndex(i); }}
+                      className="relative group/media overflow-hidden rounded-lg"
                     >
-                      <img src={img.url} alt="" className="w-full aspect-square object-cover rounded-lg" />
+                      <img src={img.url} alt="" className="w-full aspect-square object-cover transition-transform duration-300 group-hover/media:scale-110" />
+                      <div className="absolute inset-0 bg-black/0 group-hover/media:bg-black/20 transition-colors duration-300" />
                       {i === 2 && allImages.length > 3 && (
-                        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
-                          <span className="text-white text-sm font-semibold">+{allImages.length - 3}</span>
+                        <div className="absolute inset-0 bg-gradient-to-br from-black/60 to-black/80 flex items-center justify-center backdrop-blur-[2px]">
+                          <span className="text-white text-lg font-bold tracking-tight">+{allImages.length - 3}</span>
                         </div>
                       )}
                     </button>
@@ -1395,20 +1344,69 @@ function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccent
 
           {/* Media Lightbox */}
           {mediaLightbox && (
-            <div className="fixed inset-0 z-50 bg-black/90 flex flex-col" onClick={() => setMediaLightbox(null)}>
-              <div className="flex items-center justify-between px-4 py-3">
-                <h3 className="text-sm font-semibold text-white">All Media ({mediaLightbox.length})</h3>
-                <button onClick={() => setMediaLightbox(null)} className="h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex-1 overflow-y-auto px-4 pb-4">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {mediaLightbox.map((img, i) => (
-                    <a key={i} href={img.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
-                      <img src={img.url} alt="" className="w-full aspect-square object-cover rounded-xl hover:opacity-80 transition-opacity" />
+            <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={() => setMediaLightbox(null)}>
+              <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+              <div
+                className="relative bg-card border border-border/50 rounded-2xl shadow-2xl w-[90vw] max-w-4xl max-h-[90vh] flex flex-col animate-fade-in overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-border/50 shrink-0">
+                  <div className="flex items-center gap-3">
+                    <Camera className="h-4 w-4 text-muted-foreground" />
+                    <h3 className="text-sm font-semibold text-foreground">{mediaLightbox[mediaLightboxIndex].sender}</h3>
+                    <span className="text-xs text-muted-foreground/60">{mediaLightboxIndex + 1} / {mediaLightbox.length}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={mediaLightbox[mediaLightboxIndex].url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
+                      title="Open in new tab"
+                    >
+                      <Expand className="h-4 w-4" />
                     </a>
-                  ))}
+                    <button onClick={() => setMediaLightbox(null)} className="h-8 w-8 rounded-lg bg-secondary/50 hover:bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground transition-all">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+                {/* Image area */}
+                <div className="flex-1 flex items-center justify-center relative overflow-hidden bg-black/40 p-4 min-h-0">
+                  <button
+                    onClick={() => setMediaLightboxIndex((mediaLightboxIndex - 1 + mediaLightbox.length) % mediaLightbox.length)}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-all z-10"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <img
+                    src={mediaLightbox[mediaLightboxIndex].url}
+                    alt=""
+                    className="max-w-full max-h-full object-contain rounded-lg"
+                  />
+                  <button
+                    onClick={() => setMediaLightboxIndex((mediaLightboxIndex + 1) % mediaLightbox.length)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-10 w-10 rounded-full bg-black/50 hover:bg-black/70 flex items-center justify-center text-white transition-all z-10"
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </div>
+                {/* Thumbnails */}
+                <div className="shrink-0 border-t border-border/50 px-4 py-3">
+                  <div className="flex gap-2 overflow-x-auto custom-scrollbar justify-center">
+                    {mediaLightbox.map((img, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setMediaLightboxIndex(i)}
+                        className={`shrink-0 h-12 w-12 rounded-lg overflow-hidden ring-2 transition-all ${
+                          i === mediaLightboxIndex ? "ring-ring ring-offset-2 ring-offset-card" : "ring-transparent opacity-60 hover:opacity-100"
+                        }`}
+                      >
+                        <img src={img.url} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1744,7 +1742,7 @@ export default function AboutPageWrapper() {
       }
     >
       <div className="flex flex-col h-screen bg-background overflow-hidden">
-        <header className="h-12 bg-sidebar text-sidebar-foreground px-4 flex items-center justify-between shrink-0">
+        <header className="h-12 bg-background/80 backdrop-blur-xl border-b border-border/30 text-foreground px-4 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="h-7 w-7 rounded-lg bg-white/15 flex items-center justify-center">
               <MessageCircle className="h-3.5 w-3.5 text-white" />
