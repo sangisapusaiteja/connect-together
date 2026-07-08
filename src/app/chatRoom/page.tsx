@@ -12,7 +12,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useParamsStore } from "@zustandstore/redux";
 import {
   Copy, Check, Send, MessageCircle, ArrowLeft,
-  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon, Users, Palette, Share2, Mail, MessageSquare, Camera, Edit3, CheckCheck, LogOut
+  ChevronDown, Smile, Paperclip, X, Loader2, History, Sun, Moon, Users, Palette, Share2, Mail, MessageSquare, Camera, Edit3, CheckCheck, LogOut, Minus, Square, User
 } from "lucide-react";
 
 const EMOJI_CATEGORIES: { label: string; emojis: string[] }[] = [
@@ -40,11 +40,21 @@ function Skeleton({ className, style }: { className?: string; style?: React.CSSP
   );
 }
 
-function ChatRoom() {
+const ACCENT_PACKS = [
+  { id: "default", name: "Purple", gradient: "from-purple-400 to-blue-400", colors: ["#a855f7", "#6366f1", "#3b82f6"] },
+  { id: "ocean", name: "Ocean", gradient: "from-blue-400 to-cyan-400", colors: ["#3b82f6", "#06b6d4", "#0ea5e9"] },
+  { id: "forest", name: "Forest", gradient: "from-green-400 to-emerald-400", colors: ["#22c55e", "#10b981", "#059669"] },
+  { id: "sunset", name: "Sunset", gradient: "from-orange-400 to-rose-400", colors: ["#f97316", "#ef4444", "#d946ef"] },
+  { id: "rose", name: "Rose", gradient: "from-pink-400 to-purple-400", colors: ["#ec4899", "#d946ef", "#a855f7"] },
+  { id: "midnight", name: "Midnight", gradient: "from-indigo-400 to-blue-400", colors: ["#4f46e5", "#6366f1", "#818cf8"] },
+];
+
+function ChatRoom({ showProfileModal, setShowProfileModal, accentPack, setAccentPack }: { showProfileModal: boolean; setShowProfileModal: (v: boolean) => void; accentPack: string; setAccentPack: (v: string) => void }) {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [mediaLightbox, setMediaLightbox] = useState<{ url: string; sender: string; sent_at: string }[] | null>(null);
   const [optimisticIds, setOptimisticIds] = useState<Set<string>>(new Set());
   const [roomUsers, setRoomUsers] = useState<any[]>([]);
   const [activeDmUser, setActiveDmUser] = useState<{ id: number; user_name: string; profile_pic?: string } | null>(null);
@@ -88,35 +98,13 @@ function ChatRoom() {
 
   const [roomId, setRoomId] = useState<number | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
+  const [currentUsername, setCurrentUsername] = useState<string>("");
   const [roomName, setRoomName] = useState<string | null>(null);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const setMessageLength = useParamsStore((state) => state.setMessageLength);
   const { theme, setTheme } = useTheme();
-
-  const ACCENT_PACKS = [
-    { id: "default", name: "Purple", gradient: "from-purple-400 to-blue-400", colors: ["#a855f7", "#6366f1", "#3b82f6"] },
-    { id: "ocean", name: "Ocean", gradient: "from-blue-400 to-cyan-400", colors: ["#3b82f6", "#06b6d4", "#0ea5e9"] },
-    { id: "forest", name: "Forest", gradient: "from-green-400 to-emerald-400", colors: ["#22c55e", "#10b981", "#059669"] },
-    { id: "sunset", name: "Sunset", gradient: "from-orange-400 to-rose-400", colors: ["#f97316", "#ef4444", "#d946ef"] },
-    { id: "rose", name: "Rose", gradient: "from-pink-400 to-purple-400", colors: ["#ec4899", "#d946ef", "#a855f7"] },
-    { id: "midnight", name: "Midnight", gradient: "from-indigo-400 to-blue-400", colors: ["#4f46e5", "#6366f1", "#818cf8"] },
-  ];
-
-  const [accentPack, setAccentPack] = useState("default");
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem("accent-pack");
-      if (stored) setAccentPack(stored);
-    } catch {}
-  }, []);
-
-  useEffect(() => {
-    document.documentElement.setAttribute("data-accent", accentPack);
-    try { localStorage.setItem("accent-pack", accentPack); } catch {}
-  }, [accentPack]);
 
   const currentPack = ACCENT_PACKS.find((p) => p.id === accentPack) || ACCENT_PACKS[0];
   const accentGradient = `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})`;
@@ -197,7 +185,7 @@ function ChatRoom() {
         const { data, error } = await supabaseBrowserClient
           .from("messages")
           .select(
-            "id, message, sent_at, user_id(id, user_name, profile_pic), room_id(id, room_name, room_code)"
+            "id, message, images, sent_at, user_id(id, user_name, profile_pic), room_id(id, room_name, room_code)"
           )
           .eq("room_id", roomId)
           .order("sent_at", { ascending: true });
@@ -255,6 +243,7 @@ function ChatRoom() {
   useEffect(() => {
     const uname = usernameParam || localStorage.getItem("last-username");
     if (!uname) return;
+    setCurrentUsername(uname);
     const fetchGroups = async () => {
       const { data: entries } = await supabaseBrowserClient
         .from("users")
@@ -451,26 +440,45 @@ function ChatRoom() {
   };
 
   const handleSendMessage = async () => {
-    if (!roomId || !newMessage.trim() || !userId) return;
+    if (!roomId || ((!newMessage.trim()) && fileAttachments.length === 0) || !userId) return;
     const tempId = `opt-${Date.now()}`;
     const text = newMessage;
     setNewMessage("");
     setShowEmojiPicker(false);
     setOptimisticIds((prev) => new Set(prev).add(tempId));
 
+    // Upload images
+    const imageUrls: string[] = [];
+    for (const file of fileAttachments) {
+      const filePath = `chat-images/${roomId}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabaseBrowserClient.storage
+        .from("avatars")
+        .upload(filePath, file);
+      if (!uploadError) {
+        const { data: urlData } = supabaseBrowserClient.storage
+          .from("avatars")
+          .getPublicUrl(filePath);
+        if (urlData?.publicUrl) imageUrls.push(urlData.publicUrl);
+      }
+    }
+    const imagesJson = imageUrls.length > 0 ? JSON.stringify(imageUrls) : null;
+
     const optimisticMsg = {
       id: tempId,
       _optimistic: true,
       message: text,
+      images: imagesJson,
       sent_at: new Date().toISOString(),
       user_id: { id: userId, user_name: "You", profile_pic: profilePic },
       room_id: { id: roomId, room_name: roomName, room_code: roomCode },
     };
     setMessages((prev) => [...prev, optimisticMsg]);
+    setFileAttachments([]);
+    setImagePreviews([]);
 
     const { error } = await supabaseBrowserClient
       .from("messages")
-      .insert([{ room_id: roomId, user_id: userId, message: text }]);
+      .insert([{ room_id: roomId, user_id: userId, message: text, images: imagesJson }]);
     if (error) {
       setError("Failed to send message.");
       setMessages((prev) => prev.filter((m: any) => m.id !== tempId));
@@ -555,10 +563,17 @@ function ChatRoom() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
+        const { data: userData } = await supabaseBrowserClient
+          .from("users")
+          .select("username")
+          .eq("id", userId)
+          .single();
+        if (!userData?.username) return;
         const { data, error } = await supabaseBrowserClient
           .from("users")
           .select("profile_pic, bio")
-          .eq("id", userId)
+          .eq("username", userData.username)
+          .limit(1)
           .single();
         if (error) {
           console.log("Error fetching profile:", error);
@@ -615,11 +630,18 @@ function ChatRoom() {
       .getPublicUrl(filePath);
     const publicUrl = urlData?.publicUrl;
     if (publicUrl) {
-      const { error: updateError } = await supabaseBrowserClient
+      const { data: userData } = await supabaseBrowserClient
         .from("users")
-        .update({ profile_pic: publicUrl })
-        .eq("id", userId);
-      if (!updateError) setProfilePic(publicUrl);
+        .select("username")
+        .eq("id", userId)
+        .single();
+      if (userData?.username) {
+        await supabaseBrowserClient
+          .from("users")
+          .update({ profile_pic: publicUrl })
+          .eq("username", userData.username);
+      }
+      setProfilePic(publicUrl);
     }
     setEditingProfilePic(false);
   };
@@ -699,33 +721,30 @@ function ChatRoom() {
     <div className="flex-1 flex flex-row min-h-0 bg-background">
       {/* Groups Sidebar — always visible on desktop when loaded */}
       {groupsLoaded && (
-        <div className="hidden lg:flex w-[240px] shrink-0 flex-col border-r border-border/50 bg-card/60 backdrop-blur-xl">
-          <div className="shrink-0 border-b border-border/50 px-3 py-2.5 flex items-center justify-between">
-            <h3 className="text-[11px] font-semibold text-foreground uppercase tracking-widest">Groups</h3>
-            <button onClick={() => { localStorage.removeItem("last-username"); router.push("/"); }} className="h-6 w-6 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors" title="Logout">
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
+        <div className="hidden lg:flex w-[300px] shrink-0 flex-col border-r border-border/50 bg-card/60 backdrop-blur-xl">
+          <div className="shrink-0 border-b border-border/50 px-4 py-3">
+            <h3 className="text-sm font-semibold text-foreground uppercase tracking-widest">Groups</h3>
           </div>
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-2 py-2 space-y-0.5">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-3 space-y-1">
             {myGroups.map((g: any) => {
               const isActive = g.room_id === roomId;
               return (
                 <button
                   key={g.room_id}
                   onClick={() => { if (!isActive) navigateToGroup(g); }}
-                  className={`w-full flex items-center gap-2.5 p-2 rounded-lg transition-all text-left ${isActive ? "bg-ring/10 ring-1 ring-ring/20" : "hover:bg-secondary/30"}`}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all text-left ${isActive ? "bg-ring/10 ring-1 ring-ring/20" : "hover:bg-secondary/30"}`}
                 >
-                  <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border/40">
-                    {g.rooms.group_photo ? <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" /> : <AvatarFallback className="text-[8px] accent-avatar-bg">{g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}</AvatarFallback>}
+                  <Avatar className="h-10 w-10 shrink-0 ring-1 ring-border/40">
+                    {g.rooms.group_photo ? <AvatarImage src={g.rooms.group_photo} alt="" className="object-cover" /> : <AvatarFallback className="text-[10px] accent-avatar-bg">{g.rooms.room_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}</AvatarFallback>}
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate leading-tight">{g.rooms.room_name}</p>
-                    <p className="text-[10px] text-muted-foreground/60">{g.memberCount} member{g.memberCount !== 1 ? "s" : ""}</p>
+                    <p className="text-[15px] font-medium text-foreground truncate leading-tight">{g.rooms.room_name}</p>
+                    <p className="text-xs text-muted-foreground/60">{g.memberCount} member{g.memberCount !== 1 ? "s" : ""}</p>
                   </div>
                 </button>
               );
             })}
-            {myGroups.length === 0 && <p className="text-xs text-muted-foreground text-center py-6">No groups yet</p>}
+            {myGroups.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">No groups yet</p>}
           </div>
         </div>
       )}
@@ -762,23 +781,25 @@ function ChatRoom() {
 
       {hasRoom ? <><div className="flex-1 flex flex-col min-w-0">
         {/* Chat Header */}
-        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-3 py-2.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <a href="/" className="shrink-0 p-1.5 -ml-1.5 rounded-lg hover:bg-secondary/50 transition-colors">
-                <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+        <header className="shrink-0 border-b border-border/50 bg-card/80 backdrop-blur-xl px-0 py-3">
+          <div className="flex items-center justify-between px-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <a href={`/chatRoom?username=${currentUsername}`} className="shrink-0 p-2 -ml-2 rounded-xl hover:bg-secondary/50 transition-colors">
+                <ArrowLeft className="h-5 w-5 text-muted-foreground" />
               </a>
-              <Avatar className="h-8 w-8 shrink-0 ring-1 ring-border/50">
-                {profilePic ? (
-                  <AvatarImage src={profilePic} alt="Profile" className="object-cover" />
+              <Avatar className="h-10 w-10 shrink-0 ring-1 ring-border/50">
+                {groupPhoto ? (
+                  <AvatarImage src={groupPhoto} alt="" className="object-cover" />
                 ) : (
-                  <AvatarFallback className="text-[10px] accent-avatar-bg">You</AvatarFallback>
+                  <AvatarFallback className="text-xs accent-avatar-bg">
+                    {(roomName || "?").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}
+                  </AvatarFallback>
                 )}
               </Avatar>
               <div className="min-w-0">
-                <h2 className="text-sm font-semibold text-foreground truncate leading-tight">{roomName}</h2>
+                <h2 className="text-base font-semibold text-foreground truncate leading-tight">{roomName}</h2>
                 {Object.keys(typingUsers).length > 0 ? (
-                  <p className="text-[11px] text-muted-foreground/70 animate-fade-in">
+                  <p className="text-xs text-muted-foreground/70 animate-fade-in">
                     <span className="text-ring">{Object.values(typingUsers).join(", ")}</span>
                     {Object.keys(typingUsers).length === 1 ? " is typing" : " are typing"}
                     <span className="inline-flex ml-0.5">
@@ -788,28 +809,21 @@ function ChatRoom() {
                     </span>
                   </p>
                 ) : (
-                  <p className="text-[11px] text-muted-foreground/60 flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+                  <p className="text-xs text-muted-foreground/60 flex items-center gap-1">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse-dot" />
                     {roomUsers.length} member{roomUsers.length !== 1 ? "s" : ""}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setShowMobileInfo(true)}
-                className="lg:hidden h-7 w-7 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
+                className="lg:hidden h-9 w-9 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
                 title="Room info"
               >
-                <Users className="h-3.5 w-3.5" />
-              </button>
-              <button
-                onClick={() => { localStorage.removeItem("last-username"); router.push("/"); }}
-                className="h-7 w-7 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground"
-                title="Logout"
-              >
-                <LogOut className="h-3.5 w-3.5" />
+                <Users className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -817,8 +831,8 @@ function ChatRoom() {
 
         {/* Error */}
         {error && (
-          <div className="mx-4 mt-2 p-2 rounded-lg bg-destructive/10 border border-destructive/20">
-            <p className="text-xs text-red-400 text-center">{error}</p>
+          <div className="mx-4 mt-3 p-3 rounded-xl bg-destructive/10 border border-destructive/20">
+            <p className="text-sm text-red-400 text-center">{error}</p>
           </div>
         )}
 
@@ -829,16 +843,13 @@ function ChatRoom() {
         className="flex-1 overflow-y-auto custom-scrollbar px-0 relative accent-chat-bg"
       >
           {messages.length > 0 ? (
-            <div className="max-w-3xl mx-auto px-4 sm:px-6 space-y-0.5">
+            <div className="space-y-0.5 px-2">
             {messages.map((message: any, index) => {
               const msgId = message.id;
               const isCurrentUser = message.user_id?.id === userId;
               const showDate = shouldShowDate(index);
               const isOptimistic = message._optimistic;
-              const showAvatar =
-                !isCurrentUser &&
-                (index === messages.length - 1 ||
-                  messages[index + 1]?.user_id?.id !== message.user_id?.id);
+              const showAvatar = true;
               const showName =
                 !isCurrentUser &&
                 (index === 0 || messages[index - 1]?.user_id?.id !== message.user_id?.id);
@@ -848,8 +859,8 @@ function ChatRoom() {
               return (
                 <div key={msgId}>
                   {showDate && (
-                    <div className="flex justify-center py-3">
-                      <span className="text-[10px] font-medium text-muted-foreground bg-secondary/50 px-3 py-1 rounded-full">
+                    <div className="flex justify-center py-4">
+                      <span className="text-xs font-medium text-muted-foreground bg-secondary/50 px-4 py-1.5 rounded-full">
                         {formatDate(message.sent_at)}
                       </span>
                     </div>
@@ -860,18 +871,20 @@ function ChatRoom() {
                     } ${showName && !isCurrentUser ? "mt-3" : "mt-0.5"}`}
                   >
                     {!isCurrentUser && (
-                      <div className="w-7 shrink-0">
-                        {showAvatar && (
-                          <Avatar className="h-7 w-7 border border-border/50">
+                      <div className="w-9 shrink-0">
+                        {showAvatar ? (
+                          <Avatar className="h-9 w-9 border border-border/50">
                             <AvatarImage
                               src={message.user_id?.profile_pic}
                               alt={message.user_id?.user_name}
                               className="object-cover"
                             />
-                            <AvatarFallback className="text-[10px] bg-secondary">
+                            <AvatarFallback className="text-xs bg-secondary">
                               {getInitials(message.user_id?.user_name || "?")}
                             </AvatarFallback>
                           </Avatar>
+                        ) : (
+                          <div className="h-9 w-9" />
                         )}
                       </div>
                     )}
@@ -881,20 +894,39 @@ function ChatRoom() {
                       }`}
                     >
                       {showName && !isCurrentUser && (
-                        <span className="text-[11px] font-medium text-muted-foreground mb-0.5 ml-2">
+                        <span className="text-xs font-medium text-muted-foreground mb-0.5 ml-2">
                           {message.user_id?.user_name}
                         </span>
                       )}
                       <div className="group relative">
                         <div
-                          className={`px-3.5 py-2 rounded-2xl text-sm break-words ${
+                          className={`px-4 py-2.5 rounded-2xl text-base break-words ${
                             isCurrentUser
                               ? "text-white rounded-br-sm"
                               : "bg-secondary/60 text-foreground rounded-bl-sm"
                           } ${isOptimistic ? "opacity-70" : ""}`}
                           style={isCurrentUser ? { background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})` } : undefined}
                         >
-                          <p className="leading-relaxed">{message.message}</p>
+                          {(() => {
+                            let parsedImages: string[] = [];
+                            try {
+                              if (message.images) parsedImages = JSON.parse(message.images);
+                            } catch {}
+                            return parsedImages.length > 0 && (
+                              <div className={`flex gap-2 mb-2 ${parsedImages.length === 1 ? "" : "flex-wrap"}`}>
+                                {parsedImages.map((url: string, i: number) => (
+                                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                    <img
+                                      src={url}
+                                      alt="attachment"
+                                      className="rounded-lg object-cover max-h-48 max-w-[240px] cursor-pointer hover:opacity-90 transition-opacity"
+                                    />
+                                  </a>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                          {message.message && <p className="leading-relaxed">{message.message}</p>}
                           <p
                             className={`text-[10px] mt-1 ${
                               isCurrentUser ? "text-white/50" : "text-muted-foreground/60"
@@ -920,12 +952,12 @@ function ChatRoom() {
                         )}
                         {/* Reaction buttons on hover */}
                         {!isOptimistic && (
-                          <div className={`absolute -bottom-4 hidden group-hover:flex gap-0.5 bg-card border border-border/50 rounded-full px-1.5 py-0.5 shadow-lg z-10 ${isCurrentUser ? "right-0" : "left-0"}`}>
+                          <div className={`absolute -bottom-5 hidden group-hover:flex gap-1 bg-card border border-border/50 rounded-full px-2 py-1 shadow-lg z-10 ${isCurrentUser ? "right-0" : "left-0"}`}>
                             {EMOJI_CATEGORIES[1].emojis.slice(0, 4).map((emoji) => (
                               <button
                                 key={emoji}
                                 onClick={() => handleReaction(msgId, emoji)}
-                                className="text-xs hover:scale-125 transition-transform p-0.5"
+                                className="text-sm hover:scale-125 transition-transform p-0.5"
                               >
                                 {emoji}
                               </button>
@@ -934,6 +966,24 @@ function ChatRoom() {
                         )}
                       </div>
                     </div>
+                    {isCurrentUser && (
+                      <div className="w-9 shrink-0">
+                        {showAvatar ? (
+                          <Avatar className="h-9 w-9 border border-border/50">
+                            <AvatarImage
+                              src={profilePic ?? undefined}
+                              alt="You"
+                              className="object-cover"
+                            />
+                            <AvatarFallback className="text-xs bg-secondary">
+                              {getInitials("You")}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : (
+                          <div className="h-9 w-9" />
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -942,42 +992,26 @@ function ChatRoom() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-center px-4">
-            <div className="h-14 w-14 rounded-2xl bg-secondary/40 flex items-center justify-center mb-3 ring-1 ring-border/20">
-              <MessageCircle className="h-7 w-7 text-muted-foreground/50" />
+            <div className="h-16 w-16 rounded-2xl bg-secondary/40 flex items-center justify-center mb-4 ring-1 ring-border/20">
+              <MessageCircle className="h-8 w-8 text-muted-foreground/50" />
             </div>
-            <p className="text-sm font-medium text-foreground mb-1">No messages yet</p>
-            <p className="text-xs text-muted-foreground/60">Be the first to say something</p>
+            <p className="text-base font-medium text-foreground mb-1.5">No messages yet</p>
+            <p className="text-sm text-muted-foreground/60">Be the first to say something</p>
           </div>
         )}
 
         {/* Scroll to bottom FAB */}
         {showScrollBtn && (
-          <div className="absolute bottom-20 right-4 z-10">
+          <div className="sticky bottom-4 flex justify-center z-10">
             <button
               onClick={scrollToBottom}
-              className="h-8 w-8 rounded-full text-white shadow-md flex items-center justify-center transition-all animate-fade-in hover:scale-110 active:scale-95"
-              style={{
-                background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})`,
-                boxShadow: `0 4px 12px ${currentPack.colors[0]}33`,
-              }}
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Scroll to bottom FAB */}
-        {showScrollBtn && (
-          <div className="sticky bottom-4 flex justify-center">
-            <button
-              onClick={scrollToBottom}
-              className="h-9 w-9 rounded-full text-white shadow-lg flex items-center justify-center transition-all animate-fade-in"
+              className="h-11 w-11 rounded-full text-white shadow-lg flex items-center justify-center transition-all animate-fade-in hover:scale-110 active:scale-95"
               style={{
                 background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})`,
                 boxShadow: `0 10px 15px -3px ${currentPack.colors[0]}33`,
               }}
             >
-              <ChevronDown className="h-4 w-4" />
+              <ChevronDown className="h-5 w-5" />
             </button>
           </div>
         )}
@@ -985,49 +1019,49 @@ function ChatRoom() {
       </div>
 
       {/* Message Input */}
-      <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl px-0 py-2.5">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6">
+      <div className="shrink-0 border-t border-border/50 bg-card/50 backdrop-blur-xl px-2 py-3">
+        <div className="px-0">
           {imagePreviews.length > 0 && (
-            <div className="flex gap-2 mb-2 overflow-x-auto pb-1">
+            <div className="flex gap-2.5 mb-3 overflow-x-auto pb-1">
               {imagePreviews.map((url, i) => (
                 <div key={i} className="relative shrink-0">
-                  <div className="h-14 w-14 rounded-lg overflow-hidden border border-border/50">
+                  <div className="h-16 w-16 rounded-xl overflow-hidden border border-border/50">
                     <img src={url} alt="attachment" className="h-full w-full object-cover" />
                   </div>
-                  <button onClick={() => removeAttachment(i)} className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 transition-colors">
-                    <X className="h-3 w-3" />
+                  <button onClick={() => removeAttachment(i)} className="absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/80 transition-colors">
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}
             </div>
           )}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileAttach} className="hidden" />
-            <button onClick={() => fileInputRef.current?.click()} className="shrink-0 h-9 w-9 rounded-lg bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground">
-              <Paperclip className="h-3.5 w-3.5" />
+            <button onClick={() => fileInputRef.current?.click()} className="shrink-0 h-10 w-10 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors flex items-center justify-center text-muted-foreground hover:text-foreground">
+              <Paperclip className="h-4 w-4" />
             </button>
             <div className="relative">
-              <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`shrink-0 h-9 w-9 rounded-lg transition-all flex items-center justify-center ${showEmojiPicker ? "bg-primary/15 text-primary border border-primary/30" : "bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground"}`}>
-                <Smile className="h-3.5 w-3.5" />
+              <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`shrink-0 h-10 w-10 rounded-xl transition-all flex items-center justify-center ${showEmojiPicker ? "bg-primary/15 text-primary border border-primary/30" : "bg-secondary/50 hover:bg-secondary text-muted-foreground hover:text-foreground"}`}>
+                <Smile className="h-4 w-4" />
               </button>
               {showEmojiPicker && (
                 <div
                   ref={emojiPickerRef}
-                  className="absolute bottom-full mb-2 left-0 w-[300px] sm:w-[320px] bg-card border border-border/50 rounded-xl shadow-2xl shadow-black/30 animate-fade-in z-20 overflow-hidden"
+                  className="absolute bottom-full mb-3 left-0 w-[340px] sm:w-[360px] bg-card border border-border/50 rounded-xl shadow-2xl shadow-black/30 animate-fade-in z-20 overflow-hidden"
                 >
                   {/* Recent emojis */}
                   {recentEmojis.length > 0 && (
-                    <div className="px-3 pt-3 pb-2 border-b border-border/30">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <History className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Recent</span>
+                    <div className="px-4 pt-4 pb-3 border-b border-border/30">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <History className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Recent</span>
                       </div>
-                      <div className="flex gap-1 flex-wrap">
+                      <div className="flex gap-1.5 flex-wrap">
                         {recentEmojis.slice(0, 8).map((emoji) => (
                           <button
                             key={emoji}
                             onClick={() => handleEmojiSelect(emoji)}
-                            className="h-7 w-7 flex items-center justify-center hover:bg-secondary rounded-md text-base transition-all hover:scale-110"
+                            className="h-9 w-9 flex items-center justify-center hover:bg-secondary rounded-lg text-lg transition-all hover:scale-110"
                           >
                             {emoji}
                           </button>
@@ -1037,12 +1071,12 @@ function ChatRoom() {
                   )}
 
                   {/* Tabs */}
-                  <div className="flex gap-1 px-3 pt-2.5 pb-1.5 border-b border-border/30">
+                  <div className="flex gap-1 px-4 pt-3 pb-2 border-b border-border/30">
                     {EMOJI_CATEGORIES.map((cat, i) => (
                       <button
                         key={cat.label}
                         onClick={() => setEmojiTab(i)}
-                        className={`text-[10px] font-medium px-2.5 py-1 rounded-lg transition-all ${
+                        className={`text-xs font-medium px-3 py-1.5 rounded-lg transition-all ${
                           emojiTab === i
                             ? "bg-primary/15 text-primary"
                             : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
@@ -1054,13 +1088,13 @@ function ChatRoom() {
                   </div>
 
                   {/* Emoji grid */}
-                  <div className="p-2.5 max-h-[200px] overflow-y-auto custom-scrollbar">
-                    <div className="grid grid-cols-6 gap-0.5">
+                  <div className="p-3 max-h-[240px] overflow-y-auto custom-scrollbar">
+                    <div className="grid grid-cols-6 gap-1">
                       {EMOJI_CATEGORIES[emojiTab].emojis.map((emoji) => (
                         <button
                           key={emoji}
                           onClick={() => handleEmojiSelect(emoji)}
-                          className="h-9 w-9 flex items-center justify-center hover:bg-secondary/80 rounded-lg text-xl transition-all hover:scale-110 active:scale-95"
+                          className="h-10 w-10 flex items-center justify-center hover:bg-secondary/80 rounded-lg text-2xl transition-all hover:scale-110 active:scale-95"
                         >
                           {emoji}
                         </button>
@@ -1084,13 +1118,13 @@ function ChatRoom() {
                 }
               }}
               placeholder="Type a message..."
-              className="flex-1 bg-secondary/50 border-border/50 h-9 rounded-lg text-sm placeholder:text-muted-foreground focus-visible:ring-ring/50"
+              className="flex-1 bg-secondary/50 border-border/50 h-10 rounded-xl text-base placeholder:text-muted-foreground focus-visible:ring-ring/50"
             />
             <Button
               onClick={handleSendMessage}
               disabled={!newMessage.trim()}
               size="icon"
-              className="h-9 w-9 shrink-0 rounded-lg text-white shadow-sm disabled:opacity-30 disabled:shadow-none transition-all"
+              className="h-10 w-10 shrink-0 rounded-xl text-white shadow-sm disabled:opacity-30 disabled:shadow-none transition-all"
               style={{
                 background: `linear-gradient(135deg, ${currentPack.colors[0]}, ${currentPack.colors[2]})`,
                 boxShadow: `0 4px 10px -3px ${currentPack.colors[0]}33`,
@@ -1114,9 +1148,9 @@ function ChatRoom() {
       </div>
 
       {/* Right: Room Info Panel */}
-      <aside className="hidden lg:flex w-[320px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
+      <aside className="hidden lg:flex w-[340px] shrink-0 flex-col border-l border-border/50 bg-card/60 backdrop-blur-xl">
         {/* Animated Banner */}
-        <div className="relative shrink-0 h-36 overflow-hidden">
+        <div className="relative shrink-0 h-44 overflow-hidden">
           {groupPhoto ? (
             <img src={groupPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" />
           ) : null}
@@ -1129,13 +1163,13 @@ function ChatRoom() {
           />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,transparent_20%,hsl(var(--background))_80%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,transparent_40%,hsl(var(--background))_70%)]" />
-          <div className="absolute bottom-4 left-5 flex items-center gap-3">
+          <div className="absolute bottom-5 left-5 flex items-center gap-4">
             <div className="relative group/photo">
-              <Avatar className="h-14 w-14 ring-[3px] ring-background shadow-2xl">
+              <Avatar className="h-16 w-16 ring-[3px] ring-background shadow-2xl">
                 {groupPhoto ? (
                   <AvatarImage src={groupPhoto} alt={roomName || ""} className="object-cover" />
                 ) : (
-                  <AvatarFallback className="text-lg font-bold accent-avatar-bg shadow-inner">
+                  <AvatarFallback className="text-xl font-bold accent-avatar-bg shadow-inner">
                     {(roomName || "?").split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)}
                   </AvatarFallback>
                 )}
@@ -1147,7 +1181,7 @@ function ChatRoom() {
                     className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover/photo:opacity-100 transition-opacity"
                     title="Change group photo"
                   >
-                    <Camera className="h-5 w-5 text-white" />
+                    <Camera className="h-6 w-6 text-white" />
                   </button>
                   <input
                     id="group-photo-input"
@@ -1158,29 +1192,29 @@ function ChatRoom() {
                   />
                 </>
               )}
-              <span className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-[3px] ring-background animate-pulse-dot" />
+              <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-emerald-400 ring-[3px] ring-background animate-pulse-dot" />
             </div>
-            <div className="space-y-0.5">
-              <h2 className="text-base font-bold text-foreground drop-shadow-lg">{roomName}</h2>
-              <p className="text-xs text-muted-foreground/90 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+            <div className="space-y-1">
+              <h2 className="text-lg font-bold text-foreground drop-shadow-lg">{roomName}</h2>
+              <p className="text-sm text-muted-foreground/90 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse-dot" />
                 {roomUsers.length} member{roomUsers.length !== 1 ? "s" : ""} · Active
               </p>
             </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4 space-y-5">
+        <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-5 space-y-6">
           {/* Description */}
           <div className="group/desc">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">About</p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">About</p>
               {userId === creatorId && !editingDescription && (
                 <button
                   onClick={() => { setDescriptionDraft(description); setEditingDescription(true); }}
-                  className="h-5 w-5 rounded opacity-0 group-hover/desc:opacity-100 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
+                  className="h-6 w-6 rounded opacity-0 group-hover/desc:opacity-100 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
                 >
-                  <Edit3 className="h-3 w-3" />
+                  <Edit3 className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
@@ -1189,63 +1223,305 @@ function ChatRoom() {
                 <textarea
                   value={descriptionDraft}
                   onChange={(e) => setDescriptionDraft(e.target.value)}
-                  className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-3 py-2 text-xs text-foreground resize-none focus:outline-none focus:border-ring/50 h-20"
+                  className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-3 py-2 text-sm text-foreground resize-none focus:outline-none focus:border-ring/50 h-24"
                   placeholder="Add a description..."
                   autoFocus
                 />
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1.5">
                   <button
                     onClick={handleSaveDescription}
-                    className="h-7 w-7 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all"
+                    className="h-8 w-8 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all"
                   >
-                    <CheckCheck className="h-3.5 w-3.5" />
+                    <CheckCheck className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => setEditingDescription(false)}
-                    className="h-7 w-7 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
+                    className="h-8 w-8 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
                   >
-                    <X className="h-3 w-3" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
             ) : description ? (
-              <p className="text-xs text-muted-foreground leading-relaxed">{description}</p>
+              <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
             ) : userId === creatorId ? (
               <button
                 onClick={() => { setDescriptionDraft(""); setEditingDescription(true); }}
-                className="text-xs text-muted-foreground/50 italic hover:text-muted-foreground transition-colors"
+                className="text-sm text-muted-foreground/50 italic hover:text-muted-foreground transition-colors"
               >
                 Add a description...
               </button>
             ) : null}
           </div>
 
-          {/* My Profile */}
-          <div className="group/profile">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">My Profile</p>
+          {/* Room Code — quick copy */}
+          <div className="group relative">
+            <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-500"
+              style={{ background: `linear-gradient(135deg, ${currentPack.colors[0]}44, ${currentPack.colors[2]}44)` }}
+            />
+            <div className="relative flex items-center gap-4 bg-secondary/40 rounded-xl p-4 border border-border/40 group-hover:border-ring/30 transition-all">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">Invite Code</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-base font-mono text-foreground tracking-[0.15em]">{roomCode}</code>
+                  <span className="text-[9px] text-muted-foreground/50 uppercase tracking-widest font-mono">LIVE</span>
+                </div>
+              </div>
+              <button
+                onClick={handleCopy}
+                className="shrink-0 h-10 w-10 rounded-xl bg-background/70 border border-border/40 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 hover:bg-ring/10 transition-all active:scale-95"
+              >
+                {copyMessage ? <Check className="h-5 w-5 text-emerald-400" /> : <Copy className="h-5 w-5" />}
+              </button>
             </div>
-            <div className="glass rounded-xl p-3.5 space-y-3">
-              <div className="flex items-center gap-3">
+          </div>
+
+          {/* Share */}
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Share2 className="h-4 w-4 text-muted-foreground" />
+                Share
+              </h4>
+            </div>
+            <div className="grid grid-cols-3 gap-2.5">
+              {(() => {
+                const descLine = description ? `\n"${description}"\n` : "\n";
+                const rawShare = `Join me on ConnectTogether!${descLine}Room: ${roomName}\nCode: ${roomCode}\n\nConnect with anyone, anywhere.`;
+                const shareUrl = typeof window !== "undefined" ? window.location.origin : "";
+                const fullShare = `${rawShare}\n${shareUrl}`;
+                return (
+                  <>
+                    <a
+                      href={`https://wa.me/?text=${encodeURIComponent(fullShare)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex flex-col items-center gap-2 p-3.5 rounded-xl border border-border/30 bg-background/40 hover:bg-[#25D366]/10 hover:border-[#25D366]/30 transition-all group active:scale-95"
+                    >
+                      <svg className="h-6 w-6 text-muted-foreground group-hover:text-[#25D366] transition-colors" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                      </svg>
+                      <span className="text-[10px] font-medium text-muted-foreground group-hover:text-[#25D366] transition-colors">WhatsApp</span>
+                    </a>
+                    <a
+                      href={`mailto:?subject=${encodeURIComponent(`Join "${roomName}" on ConnectTogether`)}&body=${encodeURIComponent(rawShare + "\n\n" + shareUrl)}`}
+                      className="flex flex-col items-center gap-2 p-3.5 rounded-xl border border-border/30 bg-background/40 hover:bg-[#EA4335]/10 hover:border-[#EA4335]/30 transition-all group active:scale-95"
+                    >
+                      <Mail className="h-6 w-6 text-muted-foreground group-hover:text-[#EA4335] transition-colors" />
+                      <span className="text-[10px] font-medium text-muted-foreground group-hover:text-[#EA4335] transition-colors">Email</span>
+                    </a>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(fullShare);
+                        setShareCopied(true);
+                        setTimeout(() => setShareCopied(false), 2000);
+                      }}
+                      className="flex flex-col items-center gap-2 p-3.5 rounded-xl border border-border/30 bg-background/40 hover:bg-ring/10 hover:border-ring/30 transition-all group active:scale-95"
+                    >
+                      {shareCopied ? (
+                        <Check className="h-6 w-6 text-emerald-400" />
+                      ) : (
+                        <Copy className="h-6 w-6 text-muted-foreground group-hover:text-foreground transition-colors" />
+                      )}
+                      <span className="text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                        {shareCopied ? "Copied!" : "Copy Link"}
+                      </span>
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Messages", value: messages.length, icon: MessageCircle },
+              { label: "Members", value: roomUsers.length, icon: Users },
+            ].map((stat) => (
+              <div key={stat.label} className="glass rounded-xl p-4 text-center hover:bg-secondary/20 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-default">
+                <p className="text-2xl font-bold accent-stat-grad leading-none">{stat.value}</p>
+                <p className="text-xs text-muted-foreground mt-2 flex items-center justify-center gap-1.5">
+                  <stat.icon className="h-3.5 w-3.5" />
+                  {stat.label}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Medias */}
+          {(() => {
+            const allImages: { url: string; sender: string; sent_at: string }[] = [];
+            messages.forEach((msg: any) => {
+              if (msg.images) {
+                try {
+                  const urls = JSON.parse(msg.images);
+                  urls.forEach((url: string) => {
+                    allImages.push({ url, sender: msg.user_id?.user_name || "Unknown", sent_at: msg.sent_at });
+                  });
+                } catch {}
+              }
+            });
+            if (allImages.length === 0) return null;
+            const showThree = allImages.slice(0, 3);
+            return (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
+                    <Camera className="h-4 w-4 text-muted-foreground" />
+                    Medias
+                    <span className="text-muted-foreground font-normal text-xs">({allImages.length})</span>
+                  </h4>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {showThree.map((img, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setMediaLightbox(allImages)}
+                      className="relative group/media"
+                    >
+                      <img src={img.url} alt="" className="w-full aspect-square object-cover rounded-lg" />
+                      {i === 2 && allImages.length > 3 && (
+                        <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                          <span className="text-white text-sm font-semibold">+{allImages.length - 3}</span>
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Media Lightbox */}
+          {mediaLightbox && (
+            <div className="fixed inset-0 z-50 bg-black/90 flex flex-col" onClick={() => setMediaLightbox(null)}>
+              <div className="flex items-center justify-between px-4 py-3">
+                <h3 className="text-sm font-semibold text-white">All Media ({mediaLightbox.length})</h3>
+                <button onClick={() => setMediaLightbox(null)} className="h-8 w-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-4 pb-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {mediaLightbox.map((img, i) => (
+                    <a key={i} href={img.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()}>
+                      <img src={img.url} alt="" className="w-full aspect-square object-cover rounded-xl hover:opacity-80 transition-opacity" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Members */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Members
+                <span className="text-muted-foreground font-normal text-xs">({roomUsers.length})</span>
+              </h4>
+            </div>
+            <div className="space-y-1">
+              {roomUsers.map((u: any) => {
+                const isSelf = u.id === userId;
+                return (
+                  <div
+                    key={u.id}
+                    className="flex items-center gap-3 p-3 rounded-xl hover:bg-secondary/30 transition-all group cursor-pointer"
+                    onClick={() => {
+                      if (!isSelf) {
+                        setActiveDmUser(u);
+                      }
+                    }}
+                  >
+                    <div className="relative shrink-0">
+                      <Avatar className="h-10 w-10 ring-2 ring-border/50 group-hover:ring-ring/30 transition-all">
+                        <AvatarImage src={u.profile_pic} alt={u.user_name} className="object-cover" />
+                        <AvatarFallback className="text-xs accent-avatar-bg">
+                          {getInitials(u.user_name || "?")}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-card ${u.is_online ? "bg-emerald-400 animate-pulse-dot" : "bg-muted-foreground/40"}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-medium text-foreground truncate">{u.user_name}</p>
+                        {u.id === creatorId && (
+                          <span className="text-[9px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">creator</span>
+                        )}
+                        {isSelf && u.id !== creatorId && (
+                          <span className="text-[9px] font-semibold text-muted-foreground bg-secondary/60 px-2 py-0.5 rounded-md uppercase tracking-wider shrink-0">you</span>
+                        )}
+                      </div>
+                      <p className={`text-xs flex items-center gap-1 ${u.is_online ? "text-emerald-400/80" : "text-muted-foreground/60"}`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${u.is_online ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+                        {typingUsers[u.id] ? (
+                          <span className="text-ring animate-fade-in">typing<span className="inline-flex ml-0.5"><span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span><span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span><span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span></span></span>
+                        ) : u.is_online ? "Online now" : "Offline"}
+                      </p>
+                      {u.bio && (
+                        <p className="text-xs text-muted-foreground/60 truncate mt-0.5 leading-tight">{u.bio}</p>
+                      )}
+                    </div>
+                    {!isSelf && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveDmUser(u);
+                        }}
+                        className="shrink-0 h-8 w-8 rounded-lg opacity-0 group-hover:opacity-100 bg-background/80 border border-border/30 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 hover:bg-ring/10 transition-all active:scale-90"
+                        title={`Message ${u.user_name}`}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {roomUsers.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-6">No members yet</p>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </aside>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowProfileModal(false)} />
+          <div className="relative bg-card border border-border/50 rounded-2xl shadow-2xl w-[90vw] max-w-md animate-fade-in overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
+              <h3 className="text-base font-semibold text-foreground">My Profile</h3>
+              <button onClick={() => setShowProfileModal(false)} className="h-8 w-8 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6">
+              {/* Avatar */}
+              <div className="flex items-center gap-4">
                 <div className="relative group/pp">
-                  <Avatar className="h-12 w-12 ring-2 ring-border/50">
+                  <Avatar className="h-20 w-20 ring-2 ring-border/50">
                     {profilePic ? (
                       <AvatarImage src={profilePic} alt="" className="object-cover" />
                     ) : (
-                      <AvatarFallback className="text-sm font-bold accent-avatar-bg">
+                      <AvatarFallback className="text-2xl font-bold accent-avatar-bg">
                         {roomUsers.find((u: any) => u.id === userId)?.user_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "?"}
                       </AvatarFallback>
                     )}
                   </Avatar>
                   <button
-                    onClick={() => document.getElementById("profile-pic-input")?.click()}
+                    onClick={() => document.getElementById("profile-pic-input-modal")?.click()}
                     className="absolute inset-0 flex items-center justify-center rounded-full bg-black/40 opacity-0 group-hover/pp:opacity-100 transition-opacity"
                     title="Change photo"
                   >
-                    <Camera className="h-4 w-4 text-white" />
+                    <Camera className="h-6 w-6 text-white" />
                   </button>
                   <input
-                    id="profile-pic-input"
+                    id="profile-pic-input-modal"
                     type="file"
                     accept="image/*"
                     className="hidden"
@@ -1258,32 +1534,32 @@ function ChatRoom() {
                       <input
                         value={displayNameDraft}
                         onChange={(e) => setDisplayNameDraft(e.target.value)}
-                        className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-2.5 py-1.5 text-sm text-foreground font-medium focus:outline-none focus:border-ring/50"
+                        className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-3 py-2 text-base text-foreground font-medium focus:outline-none focus:border-ring/50"
                         autoFocus
                         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSaveDisplayName(); } }}
                       />
-                      <button onClick={handleSaveDisplayName} className="h-7 w-7 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all shrink-0">
-                        <CheckCheck className="h-3 w-3" />
+                      <button onClick={handleSaveDisplayName} className="h-8 w-8 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all shrink-0">
+                        <CheckCheck className="h-3.5 w-3.5" />
                       </button>
-                      <button onClick={() => setEditingDisplayName(false)} className="h-7 w-7 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0">
-                        <X className="h-3 w-3" />
+                      <button onClick={() => setEditingDisplayName(false)} className="h-8 w-8 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0">
+                        <X className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5 group/name">
-                      <p className="text-sm font-medium text-foreground truncate">
+                    <div className="flex items-center gap-2">
+                      <p className="text-lg font-medium text-foreground truncate">
                         {roomUsers.find((u: any) => u.id === userId)?.user_name || "You"}
                       </p>
                       <button
                         onClick={() => { setDisplayNameDraft(roomUsers.find((u: any) => u.id === userId)?.user_name || ""); setEditingDisplayName(true); }}
-                        className="h-4 w-4 rounded opacity-0 group-hover/name:opacity-100 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0"
+                        className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0"
                       >
-                        <Edit3 className="h-2.5 w-2.5" />
+                        <Edit3 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   )}
-                  <p className="text-[10px] flex items-center gap-1">
-                    <span className={`h-1 w-1 rounded-full ${true ? "bg-emerald-400" : "bg-muted-foreground"}`} />
+                  <p className="text-sm text-muted-foreground/70 flex items-center gap-1.5 mt-1">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
                     Online now
                   </p>
                 </div>
@@ -1291,40 +1567,38 @@ function ChatRoom() {
 
               {/* Bio */}
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <p className="text-[9px] font-medium text-muted-foreground uppercase tracking-wider">Bio</p>
-                  {!editingBio && (
-                    <button
-                      onClick={() => { setBioDraft(myBio); setEditingBio(true); }}
-                      className="h-4 w-4 rounded opacity-0 group-hover/profile:opacity-100 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all"
-                    >
-                      <Edit3 className="h-2.5 w-2.5" />
-                    </button>
-                  )}
-                </div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Bio</p>
                 {editingBio ? (
                   <div className="flex items-start gap-1.5">
                     <input
                       value={bioDraft}
                       onChange={(e) => setBioDraft(e.target.value)}
-                      className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:border-ring/50"
+                      className="flex-1 bg-secondary/40 border border-border/40 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:border-ring/50"
                       placeholder="Write something about yourself..."
                       autoFocus
                       onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSaveBio(); } }}
                     />
-                    <button onClick={handleSaveBio} className="h-7 w-7 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all shrink-0">
-                      <CheckCheck className="h-3 w-3" />
+                    <button onClick={handleSaveBio} className="h-8 w-8 rounded-lg bg-ring/20 flex items-center justify-center text-ring hover:bg-ring/30 transition-all shrink-0">
+                      <CheckCheck className="h-3.5 w-3.5" />
                     </button>
-                    <button onClick={() => setEditingBio(false)} className="h-7 w-7 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0">
-                      <X className="h-3 w-3" />
+                    <button onClick={() => setEditingBio(false)} className="h-8 w-8 rounded-lg bg-secondary/40 flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0">
+                      <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ) : myBio ? (
-                  <p className="text-xs text-muted-foreground leading-relaxed">{myBio}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-muted-foreground leading-relaxed">{myBio}</p>
+                    <button
+                      onClick={() => { setBioDraft(myBio); setEditingBio(true); }}
+                      className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground transition-all shrink-0"
+                    >
+                      <Edit3 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 ) : (
                   <button
                     onClick={() => { setBioDraft(""); setEditingBio(true); }}
-                    className="text-xs text-muted-foreground/50 italic hover:text-muted-foreground transition-colors"
+                    className="text-sm text-muted-foreground/50 italic hover:text-muted-foreground transition-colors"
                   >
                     Add a bio...
                   </button>
@@ -1332,206 +1606,17 @@ function ChatRoom() {
               </div>
             </div>
           </div>
-
-          {/* Room Code — quick copy */}
-          <div className="group relative">
-            <div className="absolute -inset-0.5 rounded-xl bg-gradient-to-r opacity-0 group-hover:opacity-100 blur-sm transition-opacity duration-500"
-              style={{ background: `linear-gradient(135deg, ${currentPack.colors[0]}44, ${currentPack.colors[2]}44)` }}
-            />
-            <div className="relative flex items-center gap-3 bg-secondary/40 rounded-xl p-3.5 border border-border/40 group-hover:border-ring/30 transition-all">
-              <div className="flex-1 min-w-0">
-                <p className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-1.5">Invite Code</p>
-                <div className="flex items-center gap-2">
-                  <code className="text-sm font-mono text-foreground tracking-[0.15em]">{roomCode}</code>
-                  <span className="text-[8px] text-muted-foreground/50 uppercase tracking-widest font-mono">LIVE</span>
-                </div>
-              </div>
-              <button
-                onClick={handleCopy}
-                className="shrink-0 h-9 w-9 rounded-lg bg-background/70 border border-border/40 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 hover:bg-ring/10 transition-all active:scale-95"
-              >
-                {copyMessage ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Share */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
-                <Share2 className="h-3.5 w-3.5 text-muted-foreground" />
-                Share
-              </h4>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {(() => {
-                const descLine = description ? `\n"${description}"\n` : "\n";
-                const rawShare = `Join me on ConnectTogether!${descLine}Room: ${roomName}\nCode: ${roomCode}\n\nConnect with anyone, anywhere.`;
-                const shareUrl = typeof window !== "undefined" ? window.location.origin : "";
-                const fullShare = `${rawShare}\n${shareUrl}`;
-                return (
-                  <>
-                    <a
-                      href={`https://wa.me/?text=${encodeURIComponent(fullShare)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/30 bg-background/40 hover:bg-[#25D366]/10 hover:border-[#25D366]/30 transition-all group active:scale-95"
-                    >
-                      <svg className="h-5 w-5 text-muted-foreground group-hover:text-[#25D366] transition-colors" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                      </svg>
-                      <span className="text-[9px] font-medium text-muted-foreground group-hover:text-[#25D366] transition-colors">WhatsApp</span>
-                    </a>
-                    <a
-                      href={`mailto:?subject=${encodeURIComponent(`Join "${roomName}" on ConnectTogether`)}&body=${encodeURIComponent(rawShare + "\n\n" + shareUrl)}`}
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/30 bg-background/40 hover:bg-[#EA4335]/10 hover:border-[#EA4335]/30 transition-all group active:scale-95"
-                    >
-                      <Mail className="h-5 w-5 text-muted-foreground group-hover:text-[#EA4335] transition-colors" />
-                      <span className="text-[9px] font-medium text-muted-foreground group-hover:text-[#EA4335] transition-colors">Email</span>
-                    </a>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(fullShare);
-                        setShareCopied(true);
-                        setTimeout(() => setShareCopied(false), 2000);
-                      }}
-                      className="flex flex-col items-center gap-1.5 p-3 rounded-xl border border-border/30 bg-background/40 hover:bg-ring/10 hover:border-ring/30 transition-all group active:scale-95"
-                    >
-                      {shareCopied ? (
-                        <Check className="h-5 w-5 text-emerald-400" />
-                      ) : (
-                        <Copy className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
-                      )}
-                      <span className="text-[9px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                        {shareCopied ? "Copied!" : "Copy Link"}
-                      </span>
-                    </button>
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {[
-              { label: "Messages", value: messages.length, icon: MessageCircle },
-              { label: "Members", value: roomUsers.length, icon: Users },
-            ].map((stat) => (
-              <div key={stat.label} className="glass rounded-xl p-3.5 text-center hover:bg-secondary/20 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-default">
-                <p className="text-xl font-bold accent-stat-grad leading-none">{stat.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-1.5 flex items-center justify-center gap-1">
-                  <stat.icon className="h-3 w-3" />
-                  {stat.label}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          {/* Members */}
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-widest flex items-center gap-1.5">
-                <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                Members
-                <span className="text-muted-foreground font-normal text-[10px]">({roomUsers.length})</span>
-              </h4>
-            </div>
-            <div className="space-y-0.5">
-              {roomUsers.map((u: any) => {
-                const isSelf = u.id === userId;
-                return (
-                  <div
-                    key={u.id}
-                    className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-secondary/30 transition-all group cursor-pointer"
-                    onClick={() => {
-                      if (!isSelf) {
-                        setActiveDmUser(u);
-                      }
-                    }}
-                  >
-                    <div className="relative shrink-0">
-                      <Avatar className="h-9 w-9 ring-2 ring-border/50 group-hover:ring-ring/30 transition-all">
-                        <AvatarImage src={u.profile_pic} alt={u.user_name} className="object-cover" />
-                        <AvatarFallback className="text-[10px] accent-avatar-bg">
-                          {getInitials(u.user_name || "?")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className={`absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full ring-2 ring-card ${u.is_online ? "bg-emerald-400 animate-pulse-dot" : "bg-muted-foreground/40"}`} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-medium text-foreground truncate">{u.user_name}</p>
-                        {u.id === creatorId && (
-                          <span className="text-[8px] font-semibold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">creator</span>
-                        )}
-                        {isSelf && u.id !== creatorId && (
-                          <span className="text-[8px] font-semibold text-muted-foreground bg-secondary/60 px-1.5 py-0.5 rounded-md uppercase tracking-wider shrink-0">you</span>
-                        )}
-                      </div>
-                      <p className={`text-[10px] flex items-center gap-1 ${u.is_online ? "text-emerald-400/80" : "text-muted-foreground/60"}`}>
-                        <span className={`h-1 w-1 rounded-full ${u.is_online ? "bg-emerald-400" : "bg-muted-foreground"}`} />
-                        {typingUsers[u.id] ? (
-                          <span className="text-ring animate-fade-in">typing<span className="inline-flex ml-0.5"><span className="animate-bounce" style={{ animationDelay: "0ms" }}>.</span><span className="animate-bounce" style={{ animationDelay: "150ms" }}>.</span><span className="animate-bounce" style={{ animationDelay: "300ms" }}>.</span></span></span>
-                        ) : u.is_online ? "Online now" : "Offline"}
-                      </p>
-                      {u.bio && (
-                        <p className="text-[10px] text-muted-foreground/60 truncate mt-0.5 leading-tight">{u.bio}</p>
-                      )}
-                    </div>
-                    {!isSelf && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDmUser(u);
-                        }}
-                        className="shrink-0 h-7 w-7 rounded-lg opacity-0 group-hover:opacity-100 bg-background/80 border border-border/30 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-ring/50 hover:bg-ring/10 transition-all active:scale-90"
-                        title={`Message ${u.user_name}`}
-                      >
-                        <MessageCircle className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              {roomUsers.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-6">No members yet</p>
-              )}
-            </div>
-          </div>
-
-          {/* Theme Packs */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest">Theme</h4>
-            </div>
-            <div className="flex gap-1.5">
-              {ACCENT_PACKS.map((pack) => (
-                <button
-                  key={pack.id}
-                  onClick={() => setAccentPack(pack.id)}
-                  className={`h-6 w-6 rounded-full border-2 transition-all active:scale-90 ${
-                    accentPack === pack.id
-                      ? "border-ring scale-110 shadow-sm shadow-ring/20"
-                      : "border-border/40 hover:border-border/70"
-                  }`}
-                  title={pack.name}
-                  style={{ background: `linear-gradient(135deg, ${pack.colors[0]}, ${pack.colors[2]})` }}
-                />
-              ))}
-            </div>
-          </div>
         </div>
-      </aside>
+      )}
 
       {/* Mobile Room Info Drawer */}
       {showMobileInfo && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setShowMobileInfo(false)} />
-          <div className="absolute right-0 top-0 bottom-0 w-[85vw] max-w-[360px] bg-card border-l border-border/50 shadow-2xl animate-fade-in flex flex-col">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border/50">
+          <div className="absolute right-0 top-0 bottom-0 w-[85vw] max-w-[380px] bg-card border-l border-border/50 shadow-2xl animate-fade-in flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border/50">
               <h3 className="text-xs font-semibold text-foreground uppercase tracking-widest">Room Info</h3>
-              <button onClick={() => setShowMobileInfo(false)} className="h-7 w-7 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => setShowMobileInfo(false)} className="h-8 w-8 rounded-lg hover:bg-secondary/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                 <X className="h-4 w-4" />
               </button>
             </div>
@@ -1584,14 +1669,6 @@ function ChatRoom() {
                   ))}
                 </div>
               </div>
-              <div>
-                <h4 className="text-[9px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Theme</h4>
-                <div className="flex gap-1.5">
-                  {ACCENT_PACKS.map((pack) => (
-                    <button key={pack.id} onClick={() => setAccentPack(pack.id)} className={`h-5 w-5 rounded-full border-2 transition-all ${accentPack === pack.id ? "border-ring scale-110" : "border-border/40"}`} style={{ background: `linear-gradient(135deg, ${pack.colors[0]}, ${pack.colors[2]})` }} />
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -1632,6 +1709,27 @@ function ChatRoom() {
 }
 
 export default function AboutPageWrapper() {
+  const router = useRouter();
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [accentPack, setAccentPack] = useState("default");
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("accent-pack");
+      if (stored) setAccentPack(stored);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-accent", accentPack);
+    try { localStorage.setItem("accent-pack", accentPack); } catch {}
+  }, [accentPack]);
+
+  const handleExit = () => {
+    localStorage.removeItem("last-username");
+    router.push("/");
+  };
+
   return (
     <Suspense
       fallback={
@@ -1640,9 +1738,42 @@ export default function AboutPageWrapper() {
         </div>
       }
     >
-      <div className="flex h-screen bg-background overflow-hidden">
-        <div className="flex-1 flex flex-col min-w-0">
-          <ChatRoom />
+      <div className="flex flex-col h-screen bg-background overflow-hidden">
+        <header className="h-12 bg-sidebar text-sidebar-foreground px-4 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-white/15 flex items-center justify-center">
+              <MessageCircle className="h-3.5 w-3.5 text-white" />
+            </div>
+            <span className="text-sm font-bold tracking-wide">Connect Together</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 bg-white/10 rounded-lg px-2 py-1">
+              {ACCENT_PACKS.map((pack) => (
+                <button
+                  key={pack.id}
+                  onClick={() => setAccentPack(pack.id)}
+                  className={`h-6 w-6 rounded-full border-2 transition-all duration-200 hover:scale-125 active:scale-95 ${
+                    accentPack === pack.id
+                      ? "border-white scale-110 shadow-lg shadow-white/20"
+                      : "border-transparent hover:border-white/50"
+                  }`}
+                  title={pack.name}
+                  style={{ background: `linear-gradient(135deg, ${pack.colors[0]}, ${pack.colors[2]})` }}
+                />
+              ))}
+            </div>
+            <button onClick={() => setShowProfileModal(true)} className="h-7 w-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors" title="My Profile">
+              <User className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={handleExit} className="h-7 w-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-white/70 hover:text-white transition-colors" title="Logout">
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </header>
+        <div className="flex-1 flex min-h-0">
+          <div className="flex-1 flex flex-col min-w-0">
+            <ChatRoom showProfileModal={showProfileModal} setShowProfileModal={setShowProfileModal} accentPack={accentPack} setAccentPack={setAccentPack} />
+          </div>
         </div>
       </div>
     </Suspense>
